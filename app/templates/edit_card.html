@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+    <h1>{{ title }}: {{ current_title }}</h1>
+    <div class="row">
+        <div class="col-md-8"> {# Чуть шире для описания #}
+            <form action="{{ url_for('edit_card', card_id=card_id) }}" method="post" novalidate>
+                {{ form.hidden_tag() }}
+                <div class="mb-3">
+                    {{ form.title.label(class="form-label") }}
+                    {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), size=40) }}
+                    {% if form.title.errors %} <div class="invalid-feedback d-block">... ошибки title ...</div> {% endif %}
+                </div>
+                {# --- Новое поле для описания --- #}
+                <div class="mb-3">
+                    {{ form.description.label(class="form-label") }}
+                    {# rows=5 задает примерную высоту поля #}
+                    {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows=5) }}
+                    {% if form.description.errors %} <div class="invalid-feedback d-block">... ошибки description ...</div> {% endif %}
+                </div>
+                {# --- Конец нового поля --- #}
+
+                {# Имя кнопки submit_card из CardForm #}
+                {{ form.submit_card(value="Сохранить", class="btn btn-primary") }}
+                <a href="{{ url_for('view_board', board_id=board_id) }}" class="btn btn-secondary">Отмена</a>
+            </form>
+        </div>
+    </div>
+{% endblock %}
