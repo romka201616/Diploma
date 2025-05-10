@@ -1,0 +1,18 @@
+/* Ваши пользовательские стили могут быть здесь */
+body {
+    /* Пример: можно добавить немного больше отступа снизу */
+    padding-bottom: 20px;
+}
+
+.card-item-clickable {
+    cursor: pointer;
+}
+.card-item-clickable:hover {
+    background-color: #f0f0f0; /* Немного темнее для лучшей видимости hover */
+}
+
+/* Для корректного отображения переносов строк в описании в модальном окне */
+#staticCardDescription {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
