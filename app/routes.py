@@ -1,4 +1,4 @@
-from flask import render_template, flash, redirect, url_for, request
+from flask import render_template, flash, redirect, url_for, request, jsonify # Добавили jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
@@ -100,18 +100,26 @@ def view_board(board_id):
     if board.owner != current_user:
         flash('У вас нет доступа к этой доске.', 'danger')
         return redirect(url_for('dashboard'))
+    
+    # Передаем обе формы в шаблон
     column_form = ColumnForm()
-    card_form = CardForm()
-    if column_form.validate_on_submit() and 'submit_column' in request.form:
-        last_column = Column.query.filter_by(board_id=board.id).order_by(Column.position.desc()).first()
-        new_position = (last_column.position + 1) if last_column else 0
-        new_column = Column(name=column_form.name.data, board_id=board.id, position=new_position)
-        db.session.add(new_column)
-        db.session.commit()
-        flash(f'Колонка "{new_column.name}" добавлена.', 'success')
-        return redirect(url_for('view_board', board_id=board.id))
-    columns = board.columns
+    card_form = CardForm() # Эта форма будет использоваться модальным окном и формой создания карточки
+
+    if request.method == 'POST': # Обработка POST запросов (создание колонки)
+        if column_form.validate_on_submit() and 'submit_column' in request.form:
+            last_column = Column.query.filter_by(board_id=board.id).order_by(Column.position.desc()).first()
+            new_position = (last_column.position + 1) if last_column else 0
+            new_column = Column(name=column_form.name.data, board_id=board.id, position=new_position)
+            db.session.add(new_column)
+            db.session.commit()
+            flash(f'Колонка "{new_column.name}" добавлена.', 'success')
+            return redirect(url_for('view_board', board_id=board.id))
+        # Ошибки валидации формы колонки будут отображены в шаблоне автоматически
+        # Ошибки формы карточки (при обычном создании) обрабатываются в create_card
+        
+    columns = board.columns # Уже отсортированы по position благодаря order_by в модели
     return render_template('board.html', title=f"Доска: {board.name}", board=board, columns=columns, column_form=column_form, card_form=card_form)
+
 
 # --- Маршруты для КОЛОНОК ---
 @app.route('/columns/<int:column_id>/edit', methods=['GET', 'POST'])
@@ -154,17 +162,20 @@ def create_card(column_id):
     if board.owner != current_user:
         flash('У вас нет прав для добавления карточек в эту колонку.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
-    card_form = CardForm()
-    if card_form.validate_on_submit() and 'submit_card' in request.form:
+    
+    card_form = CardForm() # Создаем экземпляр формы
+    if card_form.validate_on_submit(): # CSRF-токен будет проверен здесь
         new_card = Card(title=card_form.title.data, description=card_form.description.data, column_id=column.id)
         db.session.add(new_card)
         db.session.commit()
         flash(f'Карточка "{new_card.title}" добавлена в колонку "{column.name}".', 'success')
     else:
+        # Если валидация не прошла (например, пустое название), показываем ошибки
         for field, errors in card_form.errors.items():
             for error in errors:
                 flash(f"Ошибка в поле '{getattr(card_form, field).label.text}': {error}", 'danger')
     return redirect(url_for('view_board', board_id=board.id))
+
 
 @app.route('/cards/<int:card_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -174,16 +185,37 @@ def edit_card(card_id):
     board = column.board
     if board.owner != current_user:
         flash('Нет прав для редактирования этой карточки.', 'danger')
+        # Если это AJAX запрос, можно вернуть JSON с ошибкой
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=False, error='Нет прав'), 403
         return redirect(url_for('view_board', board_id=board.id))
-    form = CardForm(obj=card)
-    if form.validate_on_submit():
+
+    form = CardForm(obj=card if request.method == 'GET' else None) # Заполняем форму из объекта при GET
+
+    if form.validate_on_submit(): # request.method == 'POST'
         card.title = form.title.data
         card.description = form.description.data
         db.session.commit()
         flash('Карточка обновлена.', 'success')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+             # Можно вернуть обновленные данные карточки, если JS их использует
+            return jsonify(success=True, card={'id': card.id, 'title': card.title, 'description': card.description})
         return redirect(url_for('view_board', board_id=board.id))
-    current_title = card.title
+    
+    if request.method == 'GET': # Для обычного GET запроса (страница редактирования)
+        current_title = card.title
+        return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
+    
+    # Если POST и валидация не прошла (например, для AJAX из модального окна)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        errors = {field: error[0] for field, error in form.errors.items()}
+        return jsonify(success=False, errors=errors), 400
+    
+    # Если это обычный POST с ошибками (маловероятно, т.к. редирект выше)
+    # но для полноты можно вернуть на страницу редактирования с ошибками
+    current_title = card.title # или form.title.data если уже пытались изменить
     return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
+
 
 @app.route('/cards/<int:card_id>/delete', methods=['POST'])
 @login_required
@@ -193,9 +225,53 @@ def delete_card(card_id):
     board = column.board
     if board.owner != current_user:
         flash('У вас нет прав для удаления этой карточки.', 'danger')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=False, error='Нет прав'), 403
         return redirect(url_for('view_board', board_id=board.id))
+    
     card_title = card_to_delete.title
     db.session.delete(card_to_delete)
     db.session.commit()
     flash(f'Карточка "{card_title}" удалена.', 'success')
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify(success=True)
     return redirect(url_for('view_board', board_id=board.id))
+
+# --- API маршрут для перемещения карточек ---
+@app.route('/api/cards/<int:card_id>/move', methods=['POST'])
+@login_required
+def move_card(card_id):
+    card = Card.query.get_or_404(card_id)
+    board = card.column.board
+
+    if board.owner != current_user:
+        return jsonify(success=False, error="Нет прав для изменения этой карточки."), 403
+
+    data = request.get_json()
+    if not data or 'new_column_id' not in data:
+        return jsonify(success=False, error="Отсутствует ID новой колонки."), 400
+
+    new_column_id = data.get('new_column_id')
+    new_column = Column.query.get(new_column_id)
+
+    if not new_column or new_column.board_id != board.id:
+        return jsonify(success=False, error="Некорректный ID новой колонки."), 400
+
+    if card.column_id != new_column_id:
+        card.column_id = new_column_id
+        # Если бы мы реализовывали позиционирование:
+        # if 'new_position' in data:
+        #     card.position = data['new_position']
+        #     # Здесь также нужна логика для сдвига других карточек в старой и новой колонках
+        db.session.commit()
+        return jsonify(success=True, message="Карточка перемещена.")
+    
+    # Если карточка перемещается внутри той же колонки (только порядок меняется)
+    # или если колонка не изменилась, но мы все равно хотим подтверждение
+    # if 'new_position' in data and card.column_id == new_column_id:
+    #     card.position = data['new_position']
+    #     # Логика для сдвига других карточек в той же колонке
+    #     db.session.commit()
+    #     return jsonify(success=True, message="Порядок карточки обновлен.")
+
+    return jsonify(success=True, message="Карточка осталась в той же колонке.") # или success=False, если это ошибка

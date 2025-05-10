@@ -8,9 +8,9 @@
 </div>
 
 <div class="container-fluid">
-    <div class="row flex-nowrap overflow-auto pb-3">
+    <div class="row flex-nowrap overflow-auto pb-3" id="boardColumnsContainer">
         {% for column in columns %}
-        <div class="col-md-4 col-lg-3">
+        <div class="col-md-4 col-lg-3 column-drag-container">
             <div class="card bg-light mb-3 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 me-2">{{ column.name }}</h5>
@@ -22,9 +22,9 @@
                     </div>
                 </div>
                 <div class="card-body d-flex flex-column">
-                    <div class="list-group list-group-flush mb-3 flex-grow-1">
+                    <div class="list-group list-group-flush mb-3 flex-grow-1 card-list" id="column-{{ column.id }}" data-column-id="{{ column.id }}">
                         {% for card in column.cards.all() %}
-                        <div class="list-group-item list-group-item-action card-item-clickable py-2 px-3"
+                        <div class="list-group-item list-group-item-action card-item-clickable py-2 px-3 draggable-card"
                              data-bs-toggle="modal"
                              data-bs-target="#cardDetailModal"
                              data-card-id="{{ card.id }}"
@@ -40,7 +40,7 @@
                             {% endif %}
                         </div>
                         {% else %}
-                            <p class="text-muted small fst-italic px-3">Нет карточек</p>
+                            <div class="list-group-item text-muted small fst-italic no-cards-placeholder">Нет карточек</div>
                         {% endfor %}
                     </div>
                     <form action="{{ url_for('create_card', column_id=column.id) }}" method="post" novalidate class="mt-auto">
@@ -87,7 +87,7 @@
       </div>
       <div class="modal-body">
         <form id="editCardFormModal" method="post" action="">
-            {{ card_form.hidden_tag() }} {# Используем CSRF от общей формы, если она передана, или генерируем свой #}
+            {{ card_form.hidden_tag() }} {# CSRF token from the main card_form instance #}
             <div class="mb-3">
                 <label for="modalCardTitle" class="form-label">Заголовок карточки</label>
                 <input type="text" class="form-control" id="modalCardTitle" name="title" required maxlength="150">
@@ -96,16 +96,14 @@
                 <label for="modalCardDescription" class="form-label">Описание</label>
                 <textarea class="form-control" id="modalCardDescription" name="description" rows="5" maxlength="1000"></textarea>
             </div>
-            <input type="submit" name="submit_card" style="display:none;"> {# Для совместимости с CardForm button name #}
+            <input type="submit" name="submit_card" style="display:none;"> {# For compatibility with CardForm submit button name #}
         </form>
-        <div id="cardStaticDetails" class="d-none">
-            <h5 id="staticCardTitle"></h5>
-            <p id="staticCardDescription" style="white-space: pre-wrap;"></p>
-        </div>
       </div>
       <div class="modal-footer justify-content-between">
         <div>
             <form id="deleteCardFormModal" method="post" action="" class="d-inline" onsubmit="return confirm('Удалить карточку?');">
+                 {# CSRF token should be part of the form if Flask-WTF protects POST to delete_card without a form object #}
+                 {# For now, relying on editCardFormModal's CSRF or main page's implicit one if it covers this POST too #}
                  <button type="submit" class="btn btn-danger">Удалить</button>
             </form>
         </div>
@@ -120,23 +118,24 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }} {# For Bootstrap JS from base.html #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" integrity="sha512-Eezs+g9Lq4TCCq0wae01s9PuNWzHYoCMkE97e2qdkYthpI0pzC3UGB03lgEHn2XM85hDOUF6qgqqszs+iXU4UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var cardDetailModal = document.getElementById('cardDetailModal');
-    if (cardDetailModal) {
+    var cardDetailModalEl = document.getElementById('cardDetailModal');
+    if (cardDetailModalEl) {
         var modalForm = document.getElementById('editCardFormModal');
         var modalTitleField = document.getElementById('modalCardTitle');
         var modalDescriptionField = document.getElementById('modalCardDescription');
         var modalLabel = document.getElementById('cardDetailModalLabel');
         var deleteForm = document.getElementById('deleteCardFormModal');
-
-        var staticTitle = document.getElementById('staticCardTitle');
-        var staticDescription = document.getElementById('staticCardDescription');
-        var cardDetailsDiv = document.getElementById('cardStaticDetails');
+        var csrfToken = modalForm.querySelector('input[name="csrf_token"]').value;
 
 
-        cardDetailModal.addEventListener('show.bs.modal', function (event) {
+        cardDetailModalEl.addEventListener('show.bs.modal', function (event) {
             var cardElement = event.relatedTarget;
+            if (!cardElement || !cardElement.classList.contains('draggable-card')) return;
+
             var cardId = cardElement.getAttribute('data-card-id');
             var cardTitle = cardElement.getAttribute('data-card-title');
             var cardDescription = cardElement.getAttribute('data-card-description');
@@ -144,25 +143,113 @@ document.addEventListener('DOMContentLoaded', function () {
             var deleteUrl = cardElement.getAttribute('data-delete-url');
 
             modalLabel.textContent = 'Карточка: ' + cardTitle;
-            
             modalTitleField.value = cardTitle;
             modalDescriptionField.value = cardDescription;
             modalForm.action = editUrl;
-            
             deleteForm.action = deleteUrl;
-
-            // Показать статическую информацию (можно убрать если не нужно)
-            // staticTitle.textContent = cardTitle;
-            // staticDescription.textContent = cardDescription;
-            // cardDetailsDiv.classList.remove('d-none'); // Показываем блок
-            // modalForm.classList.add('d-none'); // Скрываем форму редактирования по умолчанию
+            
+            // Ensure CSRF token is in the delete form if it's separate and POSTing
+            let deleteCsrfInput = deleteForm.querySelector('input[name="csrf_token"]');
+            if (!deleteCsrfInput) {
+                deleteCsrfInput = document.createElement('input');
+                deleteCsrfInput.type = 'hidden';
+                deleteCsrfInput.name = 'csrf_token';
+                deleteForm.appendChild(deleteCsrfInput);
+            }
+            deleteCsrfInput.value = csrfToken;
         });
-
-        // Если вы хотите отдельный режим просмотра и редактирования в модальном окне,
-        // можно добавить кнопку "Редактировать" в модальном окне, которая будет
-        // переключать видимость статических данных и формы редактирования.
-        // Для простоты, здесь форма редактирования сразу активна.
     }
+
+    const cardLists = document.querySelectorAll('.card-list');
+    const csrfTokenForDrag = document.querySelector('#editCardFormModal input[name="csrf_token"]')?.value || // try to get from modal
+                             document.querySelector('form input[name="csrf_token"]')?.value; // fallback to any form on page
+
+    cardLists.forEach(list => {
+        Sortable.create(list, {
+            group: 'cards',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            draggable: '.draggable-card',
+            onEnd: function (evt) {
+                const itemEl = evt.item;
+                const toList = evt.to;
+                const fromList = evt.from;
+
+                const cardId = itemEl.getAttribute('data-card-id');
+                const newColumnId = toList.getAttribute('data-column-id');
+
+                updateNoCardsPlaceholder(toList);
+                updateNoCardsPlaceholder(fromList);
+
+                const payload = {
+                    new_column_id: newColumnId
+                };
+
+                fetch(`/api/cards/${cardId}/move`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfTokenForDrag // Передаем CSRF-токен
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        // Если статус ответа не 2xx, пытаемся получить текст ошибки
+                        return response.json().then(errData => {
+                            throw new Error(errData.error || `Request failed with status ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // console.log('Card moved successfully via API');
+                    } else {
+                        console.error('Failed to move card (API):', data.error);
+                        // Вернуть элемент обратно в случае ошибки сервера
+                        fromList.insertBefore(itemEl, fromList.children[evt.oldDraggableIndex]);
+                        updateNoCardsPlaceholder(toList); // Обновить плейсхолдеры обратно
+                        updateNoCardsPlaceholder(fromList);
+                        alert('Ошибка перемещения карточки: ' + (data.error || 'Неизвестная ошибка'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error during fetch for card move:', error);
+                    // Вернуть элемент обратно в случае сетевой ошибки или другой ошибки JS
+                    fromList.insertBefore(itemEl, fromList.children[evt.oldDraggableIndex]);
+                    updateNoCardsPlaceholder(toList);
+                    updateNoCardsPlaceholder(fromList);
+                    alert('Критическая ошибка при перемещении карточки. Пожалуйста, обновите страницу. (' + error.message + ')');
+                });
+            }
+        });
+    });
+
+    function updateNoCardsPlaceholder(listElement) {
+        if (!listElement) return;
+        let placeholder = listElement.querySelector('.no-cards-placeholder');
+        const cardsInList = listElement.querySelectorAll('.draggable-card').length;
+
+        if (cardsInList === 0) {
+            if (!placeholder) {
+                placeholder = document.createElement('div');
+                placeholder.className = 'list-group-item text-muted small fst-italic no-cards-placeholder';
+                placeholder.textContent = 'Нет карточек';
+                listElement.appendChild(placeholder);
+            }
+            placeholder.style.display = 'block';
+        } else {
+            if (placeholder) {
+                placeholder.style.display = 'none';
+            }
+        }
+    }
+    
+    cardLists.forEach(list => {
+        updateNoCardsPlaceholder(list);
+    });
+
 });
 </script>
 {% endblock %}
