@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-
 {% block title %}Вход{% endblock %}
-
 {% block content %}
     <h1>Вход</h1>
     <div class="row">
@@ -13,9 +11,7 @@
                     {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), size=64) }}
                     {% if form.email.errors %}
                         <div class="invalid-feedback">
-                            {% for error in form.email.errors %}
-                                <span>{{ error }}</span>
-                            {% endfor %}
+                            {% for error in form.email.errors %}<span>{{ error }}</span>{% endfor %}
                         </div>
                     {% endif %}
                 </div>
@@ -24,9 +20,7 @@
                     {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), size=32) }}
                     {% if form.password.errors %}
                         <div class="invalid-feedback">
-                            {% for error in form.password.errors %}
-                                <span>{{ error }}</span>
-                            {% endfor %}
+                            {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
                         </div>
                     {% endif %}
                 </div>

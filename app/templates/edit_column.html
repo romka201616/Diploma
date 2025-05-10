@@ -9,9 +9,12 @@
                 <div class="mb-3">
                     {{ form.name.label(class="form-label") }}
                     {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), size=40) }}
-                    {% if form.name.errors %} <div class="invalid-feedback d-block">... ошибки ...</div> {% endif %}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.name.errors %}<span>{{ error }}</span><br>{% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
-                {# Имя кнопки submit_column из ColumnForm #}
                 {{ form.submit_column(value="Сохранить", class="btn btn-primary") }}
                 <a href="{{ url_for('view_board', board_id=board_id) }}" class="btn btn-secondary">Отмена</a>
             </form>

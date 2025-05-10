@@ -1,62 +1,44 @@
 {% extends "base.html" %}
-
 {% block title %}{{ title }}{% endblock %}
-
 {% block content %}
     <h1>{{ title }}</h1>
-
-    {# --- Форма для создания новой доски --- #}
     <h2>Создать новую доску</h2>
-    <form action="{{ url_for('dashboard') }}" method="post" novalidate class="mb-4"> {# Отправляет POST на /dashboard #}
-        {{ form.hidden_tag() }} {# CSRF защита #}
-        <div class="row g-2 align-items-end"> {# Используем grid Bootstrap для расположения в ряд #}
+    <form action="{{ url_for('dashboard') }}" method="post" novalidate class="mb-4">
+        {{ form.hidden_tag() }}
+        <div class="row g-2 align-items-end">
             <div class="col-auto">
-                {{ form.name.label(class="form-label visually-hidden") }} {# Скрываем label визуально, но оставляем для скринридеров #}
-                {# Добавляем класс is-invalid, если есть ошибки валидации #}
+                {{ form.name.label(class="form-label visually-hidden") }}
                 {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), placeholder="Название новой доски", size=40) }}
                 {% if form.name.errors %}
-                    <div class="invalid-feedback d-block"> {# d-block нужен, т.к. поле в строке #}
-                        {% for error in form.name.errors %}
-                            <span>{{ error }}</span><br>
-                        {% endfor %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.name.errors %}<span>{{ error }}</span><br>{% endfor %}
                     </div>
                 {% endif %}
             </div>
             <div class="col-auto">
-                {{ form.submit(class="btn btn-primary") }} {# Кнопка создания #}
+                {{ form.submit(class="btn btn-primary", value="Создать доску") }}
             </div>
         </div>
     </form>
 
-    {# --- Список существующих досок --- #}
     <h2>Ваши доски</h2>
     {% if boards %}
-        <ul class="list-group"> {# Используем list-group Bootstrap для красивого списка #}
+        <ul class="list-group">
             {% for board in boards %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <a href="{{ url_for('view_board', board_id=board.id) }}" class="text-decoration-none me-3 fs-5">
-                    {{ board.name }}
-                </a>
-                {# --- Добавляем блок с кнопками --- #}
-                <div class="d-flex">
-                    {# --- Ссылка на редактирование --- #}
-                    <a href="{{ url_for('edit_board', board_id=board.id) }}" class="btn btn-sm btn-outline-secondary me-2">Редактировать</a>
-                    {# --- Форма удаления (остается как есть) --- #}
-                    <form action="{{ url_for('delete_board', board_id=board.id) }}" method="post" onsubmit="return confirm('Вы уверены, что хотите удалить доску \'{{ board.name }}\'? Все колонки и карточки в ней также будут удалены!');">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
-                    </form>
-                </div>
-                {# --- Конец блока с кнопками --- #}
-            </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('view_board', board_id=board.id) }}" class="text-decoration-none me-3 fs-5">
+                        {{ board.name }}
+                    </a>
+                    <div class="d-flex">
+                        <a href="{{ url_for('edit_board', board_id=board.id) }}" class="btn btn-sm btn-outline-secondary me-2">Редактировать</a>
+                        <form action="{{ url_for('delete_board', board_id=board.id) }}" method="post" onsubmit="return confirm('Вы уверены, что хотите удалить доску \'{{ board.name }}\'? Все колонки и карточки в ней также будут удалены!');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                        </form>
+                    </div>
+                </li>
             {% endfor %}
         </ul>
     {% else %}
         <p>У вас пока нет ни одной доски. Создайте первую!</p>
     {% endif %}
-
-{% endblock %}
-
-{# Добавим сюда позже JavaScript для view_board, если понадобится #}
-{% block scripts %}
-    {{ super() }} {# Сохраняем скрипты из базового шаблона (Bootstrap JS) #}
 {% endblock %}

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
-
 {% block title %}Главная{% endblock %}
-
 {% block content %}
-    <h1>Добро пожаловать!</h1>
-    <p>Пожалуйста, <a href="{{ url_for('login') }}">войдите</a> или <a href="{{ url_for('register') }}">зарегистрируйтесь</a>.</p>
+    <h1>Добро пожаловать в TeamWork App!</h1>
+    {% if not current_user.is_authenticated %}
+    <p>Пожалуйста, <a href="{{ url_for('login') }}">войдите</a> или <a href="{{ url_for('register') }}">зарегистрируйтесь</a> для начала работы.</p>
+    {% else %}
+    <p>Вы уже вошли в систему. Перейдите к <a href="{{ url_for('dashboard') }}">вашим доскам</a>.</p>
+    {% endif %}
 {% endblock %}

@@ -1,109 +1,79 @@
 {% extends "base.html" %}
-
 {% block title %}{{ title }}{% endblock %}
-
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>{{ board.name }}</h1>
     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Назад к списку досок</a>
 </div>
 
-{# Используем контейнер fluid для ширины и flexbox для горизонтального скролла колонок #}
 <div class="container-fluid">
-    <div class="row flex-nowrap overflow-auto pb-3"> {# flex-nowrap и overflow-auto для горизонтального скролла #}
-
-        {# --- Отображение существующих колонок --- #}
+    <div class="row flex-nowrap overflow-auto pb-3">
         {% for column in columns %}
-        <div class="col-md-4 col-lg-3"> {# Задаем ширину колонки, Bootstrap сам перенесет на новую строку если не помещается #}
-            <div class="card bg-light mb-3 h-100"> {# Карточка Bootstrap для колонки #}
+        <div class="col-md-4 col-lg-3">
+            <div class="card bg-light mb-3 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 me-2">{{ column.name }}</h5> {# Добавил me-2 для отступа #}
-                    {# --- Блок кнопок колонки --- #}
+                    <h5 class="mb-0 me-2">{{ column.name }}</h5>
                     <div class="d-flex align-items-center">
-                         {# --- Ссылка на редактирование колонки --- #}
                          <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку">✏️</a>
-                         {# --- Форма удаления колонки --- #}
                          <form action="{{ url_for('delete_column', column_id=column.id) }}" method="post" onsubmit="return confirm('Уверены, что хотите удалить колонку \'{{ column.name }}\'? Все карточки в ней будут удалены!');">
                             <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Удалить колонку">✖</button>
                         </form>
                     </div>
-                    {# --- Конец блока кнопок колонки --- #}
                 </div>
-                <div class="card-body d-flex flex-column"> {# flex-column для растягивания и прижатия формы добавления вниз #}
-                    <div class="list-group list-group-flush mb-3 flex-grow-1"> {# flex-grow-1 занимает доступное пространство #}
-                        {# --- Отображение карточек в колонке --- #}
-                        {% for card in column.cards.all() %} {# Получаем все карточки для этой колонки #}
+                <div class="card-body d-flex flex-column">
+                    <div class="list-group list-group-flush mb-3 flex-grow-1">
+                        {% for card in column.cards.all() %}
                         <div class="list-group-item d-flex justify-content-between align-items-start">
-                            {# Обернем название карточки в ссылку на будущее модальное окно или страницу деталей #}
-                            {# Пока ссылка ведет на страницу редактирования #}
                             <a href="{{ url_for('edit_card', card_id=card.id) }}" class="text-decoration-none text-dark me-2 flex-grow-1">
                                 {{ card.title }}
-                                {# Можно добавить иконку, если есть описание #}
-                                {% if card.description %}
-                                <span class="text-muted ms-1" title="Есть описание">📄</span>
-                                {% endif %}
+                                {% if card.description %}<span class="text-muted ms-1" title="Есть описание">📄</span>{% endif %}
                             </a>
-                            {# --- Блок кнопок карточки --- #}
                             <div class="d-flex align-items-center">
-                                {# --- Ссылка на редактирование карточки --- #}
                                 <a href="{{ url_for('edit_card', card_id=card.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-0 me-1" title="Редактировать карточку">✏️</a>
-                                {# --- Форма удаления карточки --- #}
                                  <form action="{{ url_for('delete_card', card_id=card.id) }}" method="post" onsubmit="return confirm('Удалить карточку \'{{ card.title }}\'?');">
                                     <button type="submit" class="btn btn-sm btn-outline-secondary border-0 p-0" title="Удалить карточку">🗑️</button>
                                 </form>
                             </div>
-                            {# --- Конец блока кнопок карточки --- #}
                         </div>
                         {% else %}
                             <p class="text-muted small fst-italic px-3">Нет карточек</p>
                         {% endfor %}
                     </div>
-
-                    {# --- Форма добавления новой карточки в эту колонку --- #}
-                    {# Используем переданную card_form #}
-                    <form action="{{ url_for('create_card', column_id=column.id) }}" method="post" novalidate class="mt-auto"> {# mt-auto прижимает форму вниз #}
+                    <form action="{{ url_for('create_card', column_id=column.id) }}" method="post" novalidate class="mt-auto">
                         {{ card_form.hidden_tag() }}
-                        <div class="input-group input-group-sm">
+                        <div class="input-group input-group-sm mb-2"> {# Добавил mb-2 для отступа под полем title #}
                             {{ card_form.title(class="form-control", placeholder="Новая карточка...", aria_label="Заголовок карточки") }}
-                            {{ card_form.submit_card(class="btn btn-outline-primary") }}
                         </div>
-                        {# Ошибки валидации для этой формы будут показаны через flash сообщения #}
+                        {# Скрыл отображение поля description здесь, так как оно редактируется на отдельной странице #}
+                        {# <div class="input-group input-group-sm mb-2">
+                            {{ card_form.description(class="form-control", placeholder="Описание (необязательно)", rows="2") }}
+                        </div> #}
+                        {{ card_form.submit_card(class="btn btn-outline-primary w-100", value="Добавить") }}
                     </form>
                 </div>
             </div>
         </div>
         {% endfor %}
 
-        {# --- Форма для добавления НОВОЙ КОЛОНКИ --- #}
         <div class="col-md-4 col-lg-3">
             <div class="card bg-light">
                 <div class="card-body">
-                    {# Используем переданную column_form #}
                     <form action="{{ url_for('view_board', board_id=board.id) }}" method="post" novalidate>
                         {{ column_form.hidden_tag() }}
                          <div class="mb-2">
                             {{ column_form.name.label(class="form-label visually-hidden") }}
                             {{ column_form.name(class="form-control form-control-sm" + (" is-invalid" if column_form.errors.name else ""), placeholder="Название новой колонки") }}
-                            {% if column_form.errors.name %}
+                            {% if column_form.name.errors %}
                                 <div class="invalid-feedback d-block">
-                                    {% for error in column_form.errors.name %}
-                                        <span>{{ error }}</span><br>
-                                    {% endfor %}
+                                    {% for error in column_form.name.errors %}<span>{{ error }}</span><br>{% endfor %}
                                 </div>
                             {% endif %}
                         </div>
-                        {{ column_form.submit_column(class="btn btn-primary btn-sm w-100") }}
+                        {{ column_form.submit_column(class="btn btn-primary btn-sm w-100", value="Добавить колонку") }}
                     </form>
                 </div>
             </div>
         </div>
-
-    </div> {# end row flex-nowrap #}
-</div> {# end container-fluid #}
-
-{% endblock %}
-
-{% block scripts %}
-    {{ super() }} {# Сохраняем скрипты из базового шаблона #}
-    {# Сюда позже можно добавить JS для drag-and-drop #}
+    </div>
+</div>
 {% endblock %}
