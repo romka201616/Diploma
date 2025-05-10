@@ -3,23 +3,73 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>{{ board.name }}</h1>
+    <h1>{{ board.name }} <small class="text-muted fs-6">(Владелец: {{ board.owner.username }})</small></h1>
     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Назад к списку досок</a>
 </div>
 
-<div class="container-fluid">
+<!-- Управление участниками (только для владельца) -->
+{% if is_owner %}
+<div class="card mb-4">
+    <div class="card-header">
+        Управление участниками
+    </div>
+    <div class="card-body">
+        <h5>Пригласить пользователя</h5>
+        <form action="{{ url_for('invite_to_board', board_id=board.id) }}" method="post" novalidate class="row g-3 align-items-end">
+            {{ invite_form.hidden_tag() }}
+            <div class="col-md-6">
+                {{ invite_form.email_or_username.label(class="form-label") }}
+                {{ invite_form.email_or_username(class="form-control form-control-sm" + (" is-invalid" if invite_form.email_or_username.errors else "")) }}
+                {% if invite_form.email_or_username.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in invite_form.email_or_username.errors %}<span>{{ error }}</span><br>{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="col-auto">
+                {{ invite_form.submit_invite(class="btn btn-sm btn-success") }}
+            </div>
+        </form>
+        <hr>
+        <h5>Текущие участники:</h5>
+        {% if board_members %}
+            <ul class="list-group list-group-flush">
+                {% for member in board_members %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ member.username }} ({{ member.email }})
+                    {% if member != board.owner %} {# Нельзя удалить владельца из участников #}
+                    <form action="{{ url_for('remove_from_board', board_id=board.id, user_id=member.id) }}" method="post" onsubmit="return confirm('Удалить {{ member.username }} с этой доски?');" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-warning">Удалить</button>
+                    </form>
+                    {% else %}
+                    <span class="badge bg-primary">Владелец</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-muted">Кроме вас, на доске пока нет других участников.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+
+<div class="container-fluid px-0"> {# Убрал px-0 если не нужно #}
     <div class="row flex-nowrap overflow-auto pb-3" id="boardColumnsContainer">
         {% for column in columns %}
         <div class="col-md-4 col-lg-3 column-drag-container">
             <div class="card bg-light mb-3 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 me-2">{{ column.name }}</h5>
+                    {% if current_user.can_edit_board(board) %} {# Редактировать/удалять колонки могут все участники #}
                     <div class="d-flex align-items-center">
                          <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку">✏️</a>
                          <form action="{{ url_for('delete_column', column_id=column.id) }}" method="post" onsubmit="return confirm('Уверены, что хотите удалить колонку \'{{ column.name }}\'? Все карточки в ней будут удалены!');" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Удалить колонку">✖</button>
                         </form>
                     </div>
+                    {% endif %}
                 </div>
                 <div class="card-body d-flex flex-column">
                     <div class="list-group list-group-flush mb-3 flex-grow-1 card-list" id="column-{{ column.id }}" data-column-id="{{ column.id }}">
@@ -43,6 +93,7 @@
                             <div class="list-group-item text-muted small fst-italic no-cards-placeholder">Нет карточек</div>
                         {% endfor %}
                     </div>
+                    {% if current_user.can_edit_board(board) %} {# Добавлять карточки могут все участники #}
                     <form action="{{ url_for('create_card', column_id=column.id) }}" method="post" novalidate class="mt-auto">
                         {{ card_form.hidden_tag() }}
                         <div class="input-group input-group-sm mb-2">
@@ -50,11 +101,13 @@
                         </div>
                         {{ card_form.submit_card(class="btn btn-outline-primary w-100", value="Добавить") }}
                     </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
         {% endfor %}
 
+        {% if current_user.can_edit_board(board) %} {# Добавлять колонки могут все участники #}
         <div class="col-md-4 col-lg-3">
             <div class="card bg-light">
                 <div class="card-body">
@@ -74,10 +127,11 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 
-<!-- Модальное окно для деталей/редактирования карточки -->
+<!-- Модальное окно для деталей/редактирования карточки (код остался прежним) -->
 <div class="modal fade" id="cardDetailModal" tabindex="-1" aria-labelledby="cardDetailModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -102,8 +156,6 @@
       <div class="modal-footer justify-content-between">
         <div>
             <form id="deleteCardFormModal" method="post" action="" class="d-inline" onsubmit="return confirm('Удалить карточку?');">
-                 {# CSRF token should be part of the form if Flask-WTF protects POST to delete_card without a form object #}
-                 {# For now, relying on editCardFormModal's CSRF or main page's implicit one if it covers this POST too #}
                  <button type="submit" class="btn btn-danger">Удалить</button>
             </form>
         </div>
@@ -129,12 +181,14 @@ document.addEventListener('DOMContentLoaded', function () {
         var modalDescriptionField = document.getElementById('modalCardDescription');
         var modalLabel = document.getElementById('cardDetailModalLabel');
         var deleteForm = document.getElementById('deleteCardFormModal');
+        // Попытка получить CSRF токен из формы модального окна, так как она передается в шаблон
         var csrfToken = modalForm.querySelector('input[name="csrf_token"]').value;
 
 
         cardDetailModalEl.addEventListener('show.bs.modal', function (event) {
             var cardElement = event.relatedTarget;
-            if (!cardElement || !cardElement.classList.contains('draggable-card')) return;
+            // Убедимся, что событие вызвано карточкой
+            if (!cardElement || !cardElement.classList.contains('draggable-card')) return; 
 
             var cardId = cardElement.getAttribute('data-card-id');
             var cardTitle = cardElement.getAttribute('data-card-title');
@@ -148,7 +202,6 @@ document.addEventListener('DOMContentLoaded', function () {
             modalForm.action = editUrl;
             deleteForm.action = deleteUrl;
             
-            // Ensure CSRF token is in the delete form if it's separate and POSTing
             let deleteCsrfInput = deleteForm.querySelector('input[name="csrf_token"]');
             if (!deleteCsrfInput) {
                 deleteCsrfInput = document.createElement('input');
@@ -156,20 +209,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 deleteCsrfInput.name = 'csrf_token';
                 deleteForm.appendChild(deleteCsrfInput);
             }
-            deleteCsrfInput.value = csrfToken;
+            deleteCsrfInput.value = csrfToken; // Используем CSRF токен из основной формы на странице
         });
     }
 
     const cardLists = document.querySelectorAll('.card-list');
-    const csrfTokenForDrag = document.querySelector('#editCardFormModal input[name="csrf_token"]')?.value || // try to get from modal
-                             document.querySelector('form input[name="csrf_token"]')?.value; // fallback to any form on page
+    // Используем CSRF-токен, полученный ранее из формы модального окна
+    const csrfTokenForDrag = document.querySelector('#editCardFormModal input[name="csrf_token"]')?.value;
 
     cardLists.forEach(list => {
         Sortable.create(list, {
             group: 'cards',
             animation: 150,
             ghostClass: 'sortable-ghost',
-            draggable: '.draggable-card',
+            draggable: '.draggable-card', // Только элементы с этим классом можно перетаскивать
             onEnd: function (evt) {
                 const itemEl = evt.item;
                 const toList = evt.to;
@@ -184,18 +237,28 @@ document.addEventListener('DOMContentLoaded', function () {
                 const payload = {
                     new_column_id: newColumnId
                 };
+                
+                // Проверка наличия CSRF токена перед отправкой
+                if (!csrfTokenForDrag) {
+                    console.error('CSRF token not found for drag-and-drop operation.');
+                    alert('Ошибка: CSRF токен не найден. Пожалуйста, обновите страницу.');
+                    // Вернуть элемент обратно
+                    fromList.insertBefore(itemEl, fromList.children[evt.oldDraggableIndex]);
+                    updateNoCardsPlaceholder(toList);
+                    updateNoCardsPlaceholder(fromList);
+                    return;
+                }
 
                 fetch(`/api/cards/${cardId}/move`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfTokenForDrag // Передаем CSRF-токен
+                        'X-CSRFToken': csrfTokenForDrag
                     },
                     body: JSON.stringify(payload)
                 })
                 .then(response => {
                     if (!response.ok) {
-                        // Если статус ответа не 2xx, пытаемся получить текст ошибки
                         return response.json().then(errData => {
                             throw new Error(errData.error || `Request failed with status ${response.status}`);
                         });
@@ -207,16 +270,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         // console.log('Card moved successfully via API');
                     } else {
                         console.error('Failed to move card (API):', data.error);
-                        // Вернуть элемент обратно в случае ошибки сервера
                         fromList.insertBefore(itemEl, fromList.children[evt.oldDraggableIndex]);
-                        updateNoCardsPlaceholder(toList); // Обновить плейсхолдеры обратно
+                        updateNoCardsPlaceholder(toList);
                         updateNoCardsPlaceholder(fromList);
                         alert('Ошибка перемещения карточки: ' + (data.error || 'Неизвестная ошибка'));
                     }
                 })
                 .catch(error => {
                     console.error('Error during fetch for card move:', error);
-                    // Вернуть элемент обратно в случае сетевой ошибки или другой ошибки JS
                     fromList.insertBefore(itemEl, fromList.children[evt.oldDraggableIndex]);
                     updateNoCardsPlaceholder(toList);
                     updateNoCardsPlaceholder(fromList);

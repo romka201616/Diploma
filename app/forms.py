@@ -40,17 +40,22 @@ class BoardForm(FlaskForm):
     name = StringField('Название доски',
                        validators=[DataRequired(message="Название доски не может быть пустым."),
                                    Length(min=1, max=100, message="Название должно быть от 1 до 100 символов.")])
-    submit = SubmitField('Создать/Сохранить доску') # Обновил для универсальности
+    submit = SubmitField('Создать/Сохранить доску')
 
 class ColumnForm(FlaskForm):
     name = StringField('Название колонки',
                        validators=[DataRequired(message="Название колонки не может быть пустым."),
                                    Length(min=1, max=100)])
-    submit_column = SubmitField('Добавить/Сохранить колонку') # Обновил для универсальности
+    submit_column = SubmitField('Добавить/Сохранить колонку')
 
 class CardForm(FlaskForm):
     title = StringField('Заголовок карточки',
                         validators=[DataRequired(message="Заголовок не может быть пустым."),
                                     Length(min=1, max=150)])
-    description = TextAreaField('Описание', validators=[Length(max=1000)]) # Добавлено поле описания
-    submit_card = SubmitField('Добавить/Сохранить карточку') # Обновил для универсальности
+    description = TextAreaField('Описание', validators=[Length(max=1000)])
+    submit_card = SubmitField('Добавить/Сохранить карточку')
+
+class InviteUserForm(FlaskForm):
+    email_or_username = StringField('Email или Имя пользователя для приглашения',
+                                    validators=[DataRequired(message="Введите email или имя пользователя.")])
+    submit_invite = SubmitField('Пригласить')
