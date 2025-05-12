@@ -1,6 +1,8 @@
+#--- START OF FILE forms.py ---
+
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional # Добавлен Optional
 from app.models import User
 
 class RegistrationForm(FlaskForm):
@@ -53,9 +55,19 @@ class CardForm(FlaskForm):
                         validators=[DataRequired(message="Заголовок не может быть пустым."),
                                     Length(min=1, max=150)])
     description = TextAreaField('Описание', validators=[Length(max=1000)])
+    # --- Добавлено поле для исполнителя ---
+    # coerce=int преобразует значение value из option (строка) в число
+    # validators=[Optional()] позволяет полю быть пустым (не выбранным)
+    assignee_id = SelectField('Исполнитель', coerce=int, validators=[Optional()])
+    # --- Конец добавления ---
     submit_card = SubmitField('Добавить/Сохранить карточку')
+
+    # Примечание: Мы будем устанавливать choices для assignee_id динамически в маршруте,
+    # так как они зависят от участников конкретной доски.
 
 class InviteUserForm(FlaskForm):
     email_or_username = StringField('Email или Имя пользователя для приглашения',
                                     validators=[DataRequired(message="Введите email или имя пользователя.")])
     submit_invite = SubmitField('Пригласить')
+
+#--- END OF FILE forms.py ---

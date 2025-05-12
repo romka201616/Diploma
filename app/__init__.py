@@ -1,7 +1,10 @@
+#--- START OF FILE __init__.py ---
+
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect # <--- Добавлено
 
 app = Flask(__name__)
 
@@ -20,8 +23,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
+csrf = CSRFProtect(app) # <--- Инициализация CSRFProtect
+
 login_manager.login_view = 'login' # Имя функции маршрута для страницы входа
 login_manager.login_message = 'Пожалуйста, войдите, чтобы получить доступ к этой странице.'
 login_manager.login_message_category = 'info'
 
 from app import routes, models
+#--- END OF FILE __init__.py ---
