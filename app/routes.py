@@ -1,27 +1,50 @@
-#--- START OF FILE routes.py ---
+# app/routes.py
 
-from flask import render_template, flash, redirect, url_for, request, jsonify
+from flask import render_template, flash, redirect, url_for, request, jsonify, abort
 from flask_login import login_user, logout_user, current_user, login_required
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
+from werkzeug.utils import secure_filename
 from app import app, db
-from app.forms import LoginForm, RegistrationForm, BoardForm, ColumnForm, CardForm, InviteUserForm
+from app.forms import (
+    LoginForm, RegistrationForm, BoardForm, ColumnForm, CardForm, InviteUserForm,
+    UpdateAccountForm, ChangePasswordForm, UpdateAvatarForm, AdminEditUserForm
+)
 from app.models import User, Board, Column, Card
 from sqlalchemy import or_
+import os
+from functools import wraps
+from wtforms import SelectField, SelectMultipleField # Импорт остается
+
+# --- Декоратор для проверки прав администратора ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash('Доступ запрещен. У вас нет прав администратора.', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # --- Helper function to populate assignee choices ---
 def _populate_assignee_choices(form, board):
-    """Заполняет поле assignee_id формы списком доступных пользователей."""
+    """Заполняет поле(я) выбора исполнителя(ей) в форме."""
     eligible_users = board.get_eligible_assignees()
-    # Добавляем опцию "Не назначен" со значением 0
-    choices = [(0, '--- Не назначен ---')] + [(user.id, user.username) for user in eligible_users]
-    form.assignee_id.choices = choices
+    choices_for_single = [(0, '--- Не назначен ---')] + [(user.id, user.username) for user in eligible_users]
+    choices_for_multiple = [(user.id, user.username) for user in eligible_users]
+
+    # Для SelectField (одиночный выбор)
+    if hasattr(form, 'assignee_id') and isinstance(form.assignee_id, SelectField): # Проверяем сам объект form.assignee_id
+        form.assignee_id.choices = choices_for_single
+    # Для SelectMultipleField (множественный выбор, будет использоваться позже)
+    # elif hasattr(form, 'assignees') and isinstance(form.assignees, SelectMultipleField): # Проверяем сам объект form.assignees
+    #     form.assignees.choices = choices_for_multiple
+
 
 @app.route('/')
 @app.route('/index')
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    # Если не аутентифицирован, index.html покажет ссылки на логин/регистрацию
     return render_template('index.html', title='Главная')
 
 
@@ -31,8 +54,6 @@ def dashboard():
     form = BoardForm()
     if form.validate_on_submit():
         new_board = Board(name=form.name.data, owner=current_user)
-        # Автоматически добавляем владельца в участники (хотя доступ и так есть через owner)
-        # new_board.members.append(current_user) # Это необязательно, т.к. owner и так имеет доступ
         db.session.add(new_board)
         db.session.commit()
         flash(f'Доска "{new_board.name}" успешно создана!', 'success')
@@ -41,13 +62,10 @@ def dashboard():
     owned_boards = current_user.owned_boards.order_by(Board.id.desc()).all()
     shared_boards_list = current_user.shared_boards.order_by(Board.id.desc()).all()
 
-    # Объединяем и убираем дубликаты
     all_boards_dict = {board.id: board for board in owned_boards}
     for board in shared_boards_list:
         if board.id not in all_boards_dict:
              all_boards_dict[board.id] = board
-
-    # Сортируем все доски по ID для консистентного отображения
     all_user_boards = sorted(all_boards_dict.values(), key=lambda b: b.id, reverse=True)
 
     return render_template('dashboard.html', title='Мои доски', form=form, boards=all_user_boards)
@@ -55,7 +73,7 @@ def dashboard():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('index'))
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
@@ -66,7 +84,10 @@ def login():
         flash(f'Добро пожаловать, {user.username}!', 'success')
         next_page = request.args.get('next')
         if not next_page or not next_page.startswith('/'):
-            next_page = url_for('dashboard')
+            if current_user.is_admin:
+                 next_page = url_for('admin_dashboard')
+            else:
+                next_page = url_for('dashboard')
         return redirect(next_page)
     return render_template('login.html', title='Вход', form=form)
 
@@ -79,7 +100,7 @@ def logout():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('index'))
     form = RegistrationForm()
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data)
@@ -90,12 +111,157 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html', title='Регистрация', form=form)
 
-# --- Маршруты для ДОСОК ---
+@app.route('/profile', methods=['GET'])
+@login_required
+def profile():
+    update_account_form = UpdateAccountForm(obj=current_user)
+    if request.method == 'GET':
+        update_account_form.username.data = current_user.username
+        update_account_form.email.data = current_user.email
+        
+    change_password_form = ChangePasswordForm()
+    update_avatar_form = UpdateAvatarForm()
+    return render_template('profile.html', title='Мой профиль',
+                           update_account_form=update_account_form,
+                           change_password_form=change_password_form,
+                           update_avatar_form=update_avatar_form)
+
+@app.route('/profile/edit_account', methods=['POST'])
+@login_required
+def edit_account():
+    form = UpdateAccountForm() 
+    if form.validate_on_submit():
+        current_user.username = form.username.data
+        current_user.email = form.email.data
+        db.session.commit()
+        flash('Данные профиля успешно обновлены.', 'success')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Ошибка обновления профиля ({getattr(form, field).label.text}): {error}", 'danger')
+    return redirect(url_for('profile'))
+
+
+@app.route('/profile/change_password', methods=['POST'])
+@login_required
+def change_password():
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        current_user.set_password(form.new_password.data)
+        db.session.commit()
+        flash('Пароль успешно изменен.', 'success')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                if field == 'current_password' and form.current_password.errors:
+                     flash(form.current_password.errors[0], 'danger') 
+                else:
+                    flash(f"Ошибка смены пароля ({getattr(form, field).label.text}): {error}", 'danger')
+    return redirect(url_for('profile'))
+
+@app.route('/profile/update_avatar', methods=['POST'])
+@login_required
+def update_avatar():
+    form = UpdateAvatarForm()
+    if form.validate_on_submit():
+        file = form.avatar.data
+        filename = secure_filename(file.filename)
+        _, f_ext = os.path.splitext(filename)
+        if not f_ext: 
+            flash('Файл должен иметь расширение (например, .jpg, .png).', 'warning')
+            return redirect(url_for('profile'))
+            
+        avatar_fn = f"user_{current_user.id}{f_ext.lower()}"
+        
+        if current_user.avatar_url and current_user.avatar_url != 'default_avatar.png':
+            try:
+                old_avatar_path = os.path.join(app.config['UPLOADED_AVATARS_DEST'], current_user.avatar_url)
+                if os.path.exists(old_avatar_path):
+                    os.remove(old_avatar_path)
+            except Exception as e:
+                app.logger.error(f"Error deleting old avatar: {e}")
+
+        file_path = os.path.join(app.config['UPLOADED_AVATARS_DEST'], avatar_fn)
+        try:
+            file.save(file_path)
+            current_user.avatar_url = avatar_fn
+            db.session.commit()
+            flash('Аватар успешно обновлен.', 'success')
+        except Exception as e:
+            app.logger.error(f"Error saving avatar: {e}")
+            flash('Не удалось сохранить аватар. Попробуйте еще раз.', 'danger')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Ошибка загрузки аватара: {error}", 'danger')
+    return redirect(url_for('profile'))
+
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_dashboard():
+    users = User.query.order_by(User.id).all()
+    return render_template('admin_dashboard.html', title='Панель администратора', users=users)
+
+@app.route('/admin/user/<int:user_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_user(user_id):
+    user_to_edit = User.query.get_or_404(user_id)
+    form = AdminEditUserForm(original_username=user_to_edit.username, obj=user_to_edit if request.method == 'GET' else None)
+
+    if form.validate_on_submit():
+        if user_to_edit == current_user and not form.is_admin.data:
+            admins_count = User.query.filter_by(is_admin=True).count()
+            if admins_count <= 1:
+                flash('Вы не можете снять с себя права администратора, если вы единственный администратор.', 'warning')
+                return redirect(url_for('admin_edit_user', user_id=user_id))
+        
+        user_to_edit.username = form.username.data
+        user_to_edit.is_admin = form.is_admin.data
+        db.session.commit()
+        flash(f'Данные пользователя {user_to_edit.username} обновлены.', 'success')
+        return redirect(url_for('admin_dashboard'))
+    
+    if request.method == 'GET': 
+        form.username.data = user_to_edit.username
+        form.is_admin.data = user_to_edit.is_admin
+    form.email.data = user_to_edit.email 
+    
+    return render_template('admin_edit_user.html', title=f'Редактировать пользователя: {user_to_edit.username}',
+                           form=form, user_to_edit=user_to_edit)
+
+@app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user_to_delete = User.query.get_or_404(user_id)
+    if user_to_delete == current_user:
+        flash('Вы не можете удалить свой собственный аккаунт из панели администратора.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    
+    if user_to_delete.owned_boards.count() > 0:
+        flash(f'Нельзя удалить пользователя {user_to_delete.username}, так как он владеет досками. Сначала удалите или переназначьте его доски.', 'warning')
+        return redirect(url_for('admin_dashboard'))
+
+    for board in list(user_to_delete.shared_boards): 
+        board.members.remove(user_to_delete)
+    
+    for card in list(user_to_delete.assigned_cards): 
+        card.assignee_id = None
+    
+    username = user_to_delete.username
+    db.session.delete(user_to_delete)
+    db.session.commit()
+    flash(f'Пользователь {username} удален.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
 @app.route('/boards/<int:board_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_board(board_id):
     board = Board.query.get_or_404(board_id)
-    # Редактировать название доски может только владелец
     if not current_user.can_delete_board(board):
         flash('У вас нет прав для редактирования названия этой доски.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
@@ -105,7 +271,7 @@ def edit_board(board_id):
         board.name = form.name.data
         db.session.commit()
         flash('Название доски успешно обновлено!', 'success')
-        return redirect(url_for('dashboard')) # или view_board
+        return redirect(url_for('dashboard'))
     current_name = board.name
     return render_template('edit_board.html', title='Редактировать доску', form=form, board_id=board_id, current_name=current_name)
 
@@ -118,12 +284,7 @@ def delete_board(board_id):
         return redirect(url_for('dashboard'))
 
     board_name = board_to_delete.name
-    # Важно: Удаление доски каскадно удалит колонки и карточки (cascade="all, delete-orphan")
-    # Также нужно разорвать связи с участниками в таблице board_members
-    # SQLAlchemy обычно делает это автоматически при удалении объекта из сессии,
-    # если связь настроена правильно (через secondary).
-    # Но для надежности можно очистить список members перед удалением.
-    board_to_delete.members = [] # Очищаем связь many-to-many перед удалением доски
+    board_to_delete.members = []
     db.session.delete(board_to_delete)
     db.session.commit()
     flash(f'Доска "{board_name}" удалена.', 'success')
@@ -133,22 +294,18 @@ def delete_board(board_id):
 @login_required
 def view_board(board_id):
     board = Board.query.get_or_404(board_id)
-    if not current_user.can_edit_board(board): # Проверяем доступ (владелец или участник)
+    if not current_user.can_edit_board(board):
         flash('У вас нет доступа к этой доске.', 'danger')
         return redirect(url_for('dashboard'))
 
     column_form = ColumnForm()
-    card_form = CardForm()
+    card_form = CardForm() 
     invite_form = InviteUserForm()
 
-    # --- Заполняем список исполнителей для формы создания карточки ---
-    _populate_assignee_choices(card_form, board)
-    # ---
+    _populate_assignee_choices(card_form, board) # Заполняем choices для селекта в card_form
 
-    if request.method == 'POST':
-        # Проверяем, какая кнопка была нажата (для колонок или карточек)
-        # Важно: Форма создания карточки теперь обрабатывается в 'create_card'
-        if column_form.validate_on_submit() and 'submit_column' in request.form:
+    if request.method == 'POST': 
+        if column_form.validate_on_submit() and 'submit_column' in request.form: 
             last_column = Column.query.filter_by(board_id=board.id).order_by(Column.position.desc()).first()
             new_position = (last_column.position + 1) if last_column else 0
             new_column = Column(name=column_form.name.data, board_id=board.id, position=new_position)
@@ -156,11 +313,10 @@ def view_board(board_id):
             db.session.commit()
             flash(f'Колонка "{new_column.name}" добавлена.', 'success')
             return redirect(url_for('view_board', board_id=board.id))
-        # Логика приглашения обрабатывается в 'invite_to_board'
-        # Логика создания карточки обрабатывается в 'create_card'
+        # Остальные POST (создание карточки, приглашение) обрабатываются в своих маршрутах
 
-    columns = board.columns # Получаем колонки, упорядоченные по position (задано в модели)
-    board_members_list = board.members.all()
+    columns = board.columns # Уже упорядочены по position из модели
+    board_members_list = board.members.all() 
     is_owner = (current_user == board.owner)
 
     return render_template('board.html', title=f"Доска: {board.name}", board=board,
@@ -168,12 +324,11 @@ def view_board(board_id):
                            invite_form=invite_form, board_members=board_members_list, is_owner=is_owner)
 
 
-# --- Маршруты для УПРАВЛЕНИЯ УЧАСТНИКАМИ ДОСКИ ---
 @app.route('/boards/<int:board_id>/invite', methods=['POST'])
 @login_required
 def invite_to_board(board_id):
     board = Board.query.get_or_404(board_id)
-    if not current_user.can_delete_board(board): # Только владелец может приглашать
+    if not current_user.can_delete_board(board):
         flash('Только владелец доски может приглашать участников.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
 
@@ -184,7 +339,7 @@ def invite_to_board(board_id):
 
         if not user_to_invite:
             flash(f'Пользователь с email/именем "{identifier}" не найден.', 'warning')
-        elif user_to_invite == board.owner: # Нельзя пригласить владельца (он и так имеет доступ)
+        elif user_to_invite == board.owner:
              flash('Владелец уже имеет полный доступ к доске.', 'info')
         elif user_to_invite in board.members.all():
             flash(f'Пользователь "{user_to_invite.username}" уже является участником этой доски.', 'info')
@@ -196,7 +351,6 @@ def invite_to_board(board_id):
         for field, errors in invite_form.errors.items():
             for error in errors:
                 flash(f"Ошибка в поле приглашения: {error}", 'danger')
-
     return redirect(url_for('view_board', board_id=board.id))
 
 @app.route('/boards/<int:board_id>/members/<int:user_id>/remove', methods=['POST'])
@@ -204,45 +358,43 @@ def invite_to_board(board_id):
 def remove_from_board(board_id, user_id):
     board = Board.query.get_or_404(board_id)
     user_to_remove = User.query.get_or_404(user_id)
-
-    # Удалять может только владелец ИЛИ сам пользователь может покинуть доску
     can_remove = False
-    if current_user.can_delete_board(board): # Владелец может удалять кого угодно (кроме себя)
-        if user_to_remove != current_user:
+    if current_user.can_delete_board(board): 
+        if user_to_remove != current_user: 
             can_remove = True
         else:
-             flash('Владелец не может удалить себя из участников. Для передачи прав нужна другая логика.', 'warning')
-    elif current_user == user_to_remove: # Сам пользователь покидает доску
-        can_remove = True
-    else: # Другой участник не может удалять
+             flash('Владелец не может удалить себя из участников через эту форму.', 'warning')
+    elif current_user == user_to_remove: 
+        if user_to_remove != board.owner: 
+            can_remove = True
+        else:
+            flash('Владелец не может покинуть собственную доску. Передайте права или удалите доску.', 'warning')
+    else: 
         flash('У вас нет прав для удаления этого участника.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
 
     if can_remove:
         if user_to_remove in board.members:
             board.members.remove(user_to_remove)
+            for column in board.columns: 
+                for card in column.cards.filter(Card.assignee_id == user_to_remove.id).all():
+                    card.assignee_id = None 
             db.session.commit()
             flash(f'Пользователь "{user_to_remove.username}" удален с доски "{board.name}".', 'success')
+        elif user_to_remove == board.owner: 
+             flash(f'Пользователь "{user_to_remove.username}" является владельцем и не может быть удален как участник.', 'info')
         else:
-            # Эта проверка нужна, если пользователь является владельцем, но не в 'members'
-            if user_to_remove == board.owner:
-                 flash(f'Пользователь "{user_to_remove.username}" является владельцем и не может быть удален как участник.', 'info')
-            else:
-                flash(f'Пользователь "{user_to_remove.username}" не найден среди участников этой доски.', 'info')
-
+            flash(f'Пользователь "{user_to_remove.username}" не найден среди участников этой доски.', 'info')
     return redirect(url_for('view_board', board_id=board.id))
 
-
-# --- Маршруты для КОЛОНОК ---
 @app.route('/columns/<int:column_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_column(column_id):
     column = Column.query.get_or_404(column_id)
     board = column.board
-    if not current_user.can_edit_board(board): # Проверяем доступ
+    if not current_user.can_edit_board(board):
         flash('Нет прав для редактирования элементов этой доски.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
-
     form = ColumnForm(obj=column)
     if form.validate_on_submit():
         column.name = form.name.data
@@ -257,58 +409,51 @@ def edit_column(column_id):
 def delete_column(column_id):
     column_to_delete = Column.query.get_or_404(column_id)
     board = column_to_delete.board
-    if not current_user.can_edit_board(board): # Проверяем доступ
+    if not current_user.can_edit_board(board):
         flash('У вас нет прав для удаления элементов этой доски.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
-
     column_name = column_to_delete.name
-    # Удаление колонки каскадно удалит все карточки в ней (cascade="all, delete-orphan")
     db.session.delete(column_to_delete)
     db.session.commit()
     flash(f'Колонка "{column_name}" удалена.', 'success')
     return redirect(url_for('view_board', board_id=board.id))
 
-# --- Маршруты для КАРТОЧЕК ---
+
 @app.route('/columns/<int:column_id>/cards/create', methods=['POST'])
 @login_required
 def create_card(column_id):
     column = Column.query.get_or_404(column_id)
     board = column.board
-    if not current_user.can_edit_board(board): # Проверяем доступ
+    if not current_user.can_edit_board(board):
         flash('У вас нет прав для добавления карточек на эту доску.', 'danger')
-        return redirect(url_for('view_board', board_id=board.id))
+        return redirect(url_for('view_board', board_id=board.id, _anchor=f'column-{column.id}'))
 
-    card_form = CardForm()
-    # --- Заполняем список исполнителей ПЕРЕД валидацией ---
+    card_form = CardForm(request.form) 
     _populate_assignee_choices(card_form, board)
-    # ---
 
     if card_form.validate_on_submit():
-        # Получаем ID исполнителя, если он выбран (и не равен 0)
         selected_assignee_id = card_form.assignee_id.data
         assignee_id_to_save = selected_assignee_id if selected_assignee_id != 0 else None
-
         new_card = Card(
             title=card_form.title.data,
             description=card_form.description.data,
             column_id=column.id,
-            assignee_id=assignee_id_to_save # Сохраняем ID исполнителя (или None)
+            assignee_id=assignee_id_to_save
         )
         db.session.add(new_card)
         db.session.commit()
         flash(f'Карточка "{new_card.title}" добавлена в колонку "{column.name}".', 'success')
     else:
-        # Если форма не прошла валидацию, показываем ошибки
-        for field, errors in card_form.errors.items():
-            # Исключаем assignee_id из общих ошибок, если проблема была только в выборе
-            if field != 'assignee_id':
-                 for error in errors:
-                     flash(f"Ошибка в поле '{getattr(card_form, field).label.text}': {error}", 'danger')
-            # Можно добавить отдельную логику для ошибок assignee_id, если они возможны
-            # (например, если значение было подделано и не входит в choices),
-            # но стандартные валидаторы WTForms должны это покрыть.
-
-    return redirect(url_for('view_board', board_id=board.id))
+        for field_name, errors in card_form.errors.items():
+            field_label = field_name
+            try:
+                field_label = getattr(card_form, field_name).label.text
+            except AttributeError:
+                pass 
+            for error in errors:
+                 flash(f"Ошибка в поле '{field_label}': {error}", 'danger')
+                 
+    return redirect(url_for('view_board', board_id=board.id, _anchor=f'column-{column.id}'))
 
 
 @app.route('/cards/<int:card_id>/edit', methods=['GET', 'POST'])
@@ -317,60 +462,78 @@ def edit_card(card_id):
     card = Card.query.get_or_404(card_id)
     column = card.column
     board = column.board
-    if not current_user.can_edit_board(board): # Проверяем доступ
+    if not current_user.can_edit_board(board):
         flash('Нет прав для редактирования карточек на этой доске.', 'danger')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify(success=False, error='Нет прав'), 403
-        # Редирект на страницу доски, если это не AJAX запрос
         return redirect(url_for('view_board', board_id=board.id))
 
-    # Создаем форму. Если GET, заполняем из объекта card. Если POST, из request.form.
-    form = CardForm(obj=card if request.method == 'GET' else None)
-    # --- Заполняем список исполнителей и устанавливаем текущее значение ---
+    form = CardForm(request.form if request.method == 'POST' else None, obj=card if request.method == 'GET' else None)
     _populate_assignee_choices(form, board)
+    
     if request.method == 'GET':
-        form.assignee_id.data = card.assignee_id or 0 # Устанавливаем текущего исполнителя (или 0 для 'Не назначен')
-    # ---
+        form.assignee_id.data = card.assignee_id or 0
 
-    if form.validate_on_submit():
+    if form.validate_on_submit() and request.method == 'POST':
         card.title = form.title.data
         card.description = form.description.data
-        # Обрабатываем ID исполнителя
         selected_assignee_id = form.assignee_id.data
         card.assignee_id = selected_assignee_id if selected_assignee_id != 0 else None
-
         db.session.commit()
-        flash('Карточка обновлена.', 'success')
-
+        
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            # Если это AJAX запрос (из модального окна), возвращаем JSON
             assignee_data = None
+            assignee_avatar_url = url_for('static', filename='images/default_avatar.png')
             if card.assignee:
                 assignee_data = {'id': card.assignee.id, 'username': card.assignee.username}
+                assignee_avatar_url = card.assignee.get_avatar()
+
             return jsonify(success=True, card={
                 'id': card.id,
                 'title': card.title,
-                'description': card.description,
-                'assignee': assignee_data # Добавляем информацию об исполнителе
+                'description': card.description or "", # Передаем пустую строку, если null
+                'assignee': assignee_data, 
+                'assignee_id': card.assignee_id or 0, 
+                'assignee_avatar_url': assignee_avatar_url 
             })
-        # Если обычный POST (из отдельной страницы редактирования), редирект
+        flash('Карточка обновлена.', 'success')
         return redirect(url_for('view_board', board_id=board.id))
-
-    # Если GET запрос или форма не прошла валидацию (для не-AJAX случая)
-    if request.method == 'GET':
-        # Отображаем страницу редактирования (если используется отдельная страница)
-        current_title = card.title # Для заголовка страницы
+    
+    if request.method == 'GET' and not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        current_title = card.title
         return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
-
-    # Если POST запрос не прошел валидацию (для AJAX)
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and form.errors:
         errors = {field: error[0] for field, error in form.errors.items()}
         return jsonify(success=False, errors=errors), 400
+    
+    if request.method == 'POST' and form.errors:
+         flash('Пожалуйста, исправьте ошибки в форме.', 'danger')
+         current_title = form.title.data if form.title.data else card.title
+         # Заполняем форму данными из запроса для отображения ошибок
+         form = CardForm(request.form, obj=card) # Перезаполняем с request.form
+         _populate_assignee_choices(form, board) # И снова choices
+         return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
 
-    # Если POST не прошел валидацию и это не AJAX (возврат на страницу редактирования)
-    current_title = form.title.data or card.title # Показать введенное или старое название
-    flash('Пожалуйста, исправьте ошибки в форме.', 'danger')
-    return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.method == 'GET':
+         assignee_data = None
+         assignee_avatar_url = url_for('static', filename='images/default_avatar.png')
+         if card.assignee:
+             assignee_data = {'id': card.assignee.id, 'username': card.assignee.username}
+             assignee_avatar_url = card.assignee.get_avatar()
+         return jsonify(
+             success=True, 
+             card={
+                 'id': card.id, 
+                 'title': card.title, 
+                 'description': card.description or "",
+                 'assignee_id': card.assignee_id or 0,
+                 'assignee': assignee_data,
+                 'assignee_avatar_url': assignee_avatar_url
+             },
+         )
+
+    return redirect(url_for('view_board', board_id=board.id))
 
 
 @app.route('/cards/<int:card_id>/delete', methods=['POST'])
@@ -379,7 +542,7 @@ def delete_card(card_id):
     card_to_delete = Card.query.get_or_404(card_id)
     column = card_to_delete.column
     board = column.board
-    if not current_user.can_edit_board(board): # Проверяем доступ
+    if not current_user.can_edit_board(board):
         flash('У вас нет прав для удаления карточек на этой доске.', 'danger')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify(success=False, error='Нет прав'), 403
@@ -388,21 +551,18 @@ def delete_card(card_id):
     card_title = card_to_delete.title
     db.session.delete(card_to_delete)
     db.session.commit()
-    flash(f'Карточка "{card_title}" удалена.', 'success')
+    
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        # Возвращаем JSON для AJAX запроса (из модального окна)
         return jsonify(success=True, message=f'Карточка "{card_title}" удалена.')
-    # Обычный редирект, если удаление было не из модального окна
+    flash(f'Карточка "{card_title}" удалена.', 'success')
     return redirect(url_for('view_board', board_id=board.id))
 
-# --- API маршрут для перемещения карточек ---
 @app.route('/api/cards/<int:card_id>/move', methods=['POST'])
 @login_required
 def move_card(card_id):
     card = Card.query.get_or_404(card_id)
     board = card.column.board
-
-    if not current_user.can_edit_board(board): # Проверяем доступ
+    if not current_user.can_edit_board(board):
         return jsonify(success=False, error="Нет прав для изменения этой карточки."), 403
 
     data = request.get_json()
@@ -411,20 +571,11 @@ def move_card(card_id):
 
     new_column_id = data.get('new_column_id')
     new_column = Column.query.get(new_column_id)
-
-    # Проверяем, что новая колонка существует и принадлежит той же доске
     if not new_column or new_column.board_id != board.id:
         return jsonify(success=False, error="Некорректный ID новой колонки."), 400
 
     if card.column_id != new_column_id:
-        old_column_id = card.column_id
         card.column_id = new_column_id
         db.session.commit()
-        # Можно добавить логирование или доп. действия
         return jsonify(success=True, message="Карточка перемещена.")
-    else:
-        # Карточка осталась в той же колонке (например, изменился только порядок)
-        # В текущей реализации мы не сохраняем порядок внутри колонки
-        return jsonify(success=True, message="Карточка осталась в той же колонке.")
-
-#--- END OF FILE routes.py ---
+    return jsonify(success=True, message="Карточка осталась в той же колонке.")

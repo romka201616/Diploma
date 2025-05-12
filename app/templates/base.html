@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ru">
   <head>
@@ -15,16 +16,26 @@
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav ms-auto">
+          <ul class="navbar-nav ms-auto align-items-center">
             {% if current_user.is_authenticated %}
               <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('dashboard') }}">Мои доски</a>
               </li>
+              {% if current_user.is_admin %}
               <li class="nav-item">
-                <span class="navbar-text me-2">Привет, {{ current_user.username }}!</span>
+                <a class="nav-link" href="{{ url_for('admin_dashboard') }}">Админ</a>
               </li>
-              <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('logout') }}">Выйти</a>
+              {% endif %}
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <img src="{{ current_user.get_avatar() }}" alt="Аватар" class="rounded-circle me-1" style="width: 30px; height: 30px; object-fit: cover;">
+                  {{ current_user.username }}
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownMenuLink">
+                  <li><a class="dropdown-item" href="{{ url_for('profile') }}">Мой профиль</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{{ url_for('logout') }}">Выйти</a></li>
+                </ul>
               </li>
             {% else %}
               <li class="nav-item">

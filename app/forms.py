@@ -1,9 +1,12 @@
 #--- START OF FILE forms.py ---
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField
-from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional # Добавлен Optional
+from flask_wtf.file import FileField, FileAllowed # Для загрузки файлов
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, SelectMultipleField
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional
 from app.models import User
+from flask_login import current_user # Для валидации текущего пароля
+
 
 class RegistrationForm(FlaskForm):
     username = StringField('Имя пользователя',
@@ -54,20 +57,77 @@ class CardForm(FlaskForm):
     title = StringField('Заголовок карточки',
                         validators=[DataRequired(message="Заголовок не может быть пустым."),
                                     Length(min=1, max=150)])
-    description = TextAreaField('Описание', validators=[Length(max=1000)])
-    # --- Добавлено поле для исполнителя ---
-    # coerce=int преобразует значение value из option (строка) в число
-    # validators=[Optional()] позволяет полю быть пустым (не выбранным)
+    description = TextAreaField('Описание', validators=[Length(max=1000), Optional()])
+    
+    # Текущее поле для одного исполнителя (будет заменено)
     assignee_id = SelectField('Исполнитель', coerce=int, validators=[Optional()])
-    # --- Конец добавления ---
+    
+    # Поле для нескольких исполнителей (будет использоваться позже)
+    # assignees = SelectMultipleField('Исполнители', coerce=int, validators=[Optional()])
+    
     submit_card = SubmitField('Добавить/Сохранить карточку')
 
-    # Примечание: Мы будем устанавливать choices для assignee_id динамически в маршруте,
-    # так как они зависят от участников конкретной доски.
 
 class InviteUserForm(FlaskForm):
     email_or_username = StringField('Email или Имя пользователя для приглашения',
                                     validators=[DataRequired(message="Введите email или имя пользователя.")])
     submit_invite = SubmitField('Пригласить')
+
+# --- Формы для Профиля Пользователя ---
+class UpdateAccountForm(FlaskForm):
+    username = StringField('Имя пользователя',
+                           validators=[DataRequired(), Length(min=4, max=64)])
+    email = StringField('Email',
+                        validators=[DataRequired(), Email()])
+    submit = SubmitField('Обновить профиль')
+
+    def validate_username(self, username):
+        if username.data != current_user.username: # Проверяем, только если имя изменено
+            user = User.query.filter_by(username=username.data).first()
+            if user:
+                raise ValidationError('Это имя пользователя уже занято. Пожалуйста, выберите другое.')
+
+    def validate_email(self, email):
+        if email.data != current_user.email: # Проверяем, только если email изменен
+            user = User.query.filter_by(email=email.data).first()
+            if user:
+                raise ValidationError('Этот email уже зарегистрирован. Пожалуйста, используйте другой.')
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Текущий пароль', validators=[DataRequired()])
+    new_password = PasswordField('Новый пароль',
+                                 validators=[DataRequired(), Length(min=6)])
+    confirm_new_password = PasswordField('Подтвердите новый пароль',
+                                         validators=[DataRequired(), EqualTo('new_password', message='Пароли должны совпадать.')])
+    submit = SubmitField('Сменить пароль')
+
+    def validate_current_password(self, current_password):
+        if not current_user.check_password(current_password.data):
+            raise ValidationError('Неверный текущий пароль.')
+
+class UpdateAvatarForm(FlaskForm):
+    avatar = FileField('Новый аватар (макс 2МБ, jpg, png, gif)',
+                       validators=[DataRequired(message="Выберите файл для загрузки."),
+                                   FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Разрешены только изображения (jpg, png, gif)!')])
+    submit = SubmitField('Загрузить аватар')
+
+# --- Формы для Панели Администратора ---
+class AdminEditUserForm(FlaskForm):
+    username = StringField('Имя пользователя',
+                           validators=[DataRequired(), Length(min=4, max=64)])
+    email = StringField('Email (не редактируется администратором)', render_kw={'readonly': True})
+    is_admin = BooleanField('Права администратора') # Администратор может назначать/снимать права
+    submit = SubmitField('Сохранить изменения')
+
+    # user_id нужен для валидации уникальности username, исключая текущего редактируемого пользователя
+    def __init__(self, original_username, *args, **kwargs):
+        super(AdminEditUserForm, self).__init__(*args, **kwargs)
+        self.original_username = original_username
+
+    def validate_username(self, username):
+        if username.data != self.original_username:
+            user = User.query.filter_by(username=username.data).first()
+            if user:
+                raise ValidationError('Это имя пользователя уже занято.')
 
 #--- END OF FILE forms.py ---
