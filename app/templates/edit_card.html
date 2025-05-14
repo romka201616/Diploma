@@ -1,3 +1,4 @@
+{# app/templates/edit_card.html (страница полного редактирования, если нужна) #}
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
@@ -24,6 +25,17 @@
                         </div>
                     {% endif %}
                 </div>
+                <div class="mb-3">
+                    {{ form.assignees.label(class="form-label") }}
+                    {{ form.assignees(class="form-select" + (" is-invalid" if form.assignees.errors else ""), multiple="multiple", style="min-height: 120px;") }}
+                     <div class="form-text">Удерживайте Ctrl (или Cmd на Mac) для выбора нескольких исполнителей.</div>
+                    {% if form.assignees.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.assignees.errors %}<span>{{ error }}</span><br>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
                 {{ form.submit_card(value="Сохранить", class="btn btn-primary") }}
                 <a href="{{ url_for('view_board', board_id=board.id) }}" class="btn btn-secondary">Отмена</a>
             </form>

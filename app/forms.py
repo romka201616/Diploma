@@ -1,4 +1,4 @@
-#--- START OF FILE forms.py ---
+# app/forms.py
 
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed # Для загрузки файлов
@@ -59,11 +59,8 @@ class CardForm(FlaskForm):
                                     Length(min=1, max=150)])
     description = TextAreaField('Описание', validators=[Length(max=1000), Optional()])
     
-    # Текущее поле для одного исполнителя (будет заменено)
-    assignee_id = SelectField('Исполнитель', coerce=int, validators=[Optional()])
-    
-    # Поле для нескольких исполнителей (будет использоваться позже)
-    # assignees = SelectMultipleField('Исполнители', coerce=int, validators=[Optional()])
+    # Поле для нескольких исполнителей
+    assignees = SelectMultipleField('Исполнители', coerce=int, validators=[Optional()])
     
     submit_card = SubmitField('Добавить/Сохранить карточку')
 
@@ -82,13 +79,13 @@ class UpdateAccountForm(FlaskForm):
     submit = SubmitField('Обновить профиль')
 
     def validate_username(self, username):
-        if username.data != current_user.username: # Проверяем, только если имя изменено
+        if username.data != current_user.username: 
             user = User.query.filter_by(username=username.data).first()
             if user:
                 raise ValidationError('Это имя пользователя уже занято. Пожалуйста, выберите другое.')
 
     def validate_email(self, email):
-        if email.data != current_user.email: # Проверяем, только если email изменен
+        if email.data != current_user.email: 
             user = User.query.filter_by(email=email.data).first()
             if user:
                 raise ValidationError('Этот email уже зарегистрирован. Пожалуйста, используйте другой.')
@@ -116,10 +113,9 @@ class AdminEditUserForm(FlaskForm):
     username = StringField('Имя пользователя',
                            validators=[DataRequired(), Length(min=4, max=64)])
     email = StringField('Email (не редактируется администратором)', render_kw={'readonly': True})
-    is_admin = BooleanField('Права администратора') # Администратор может назначать/снимать права
+    is_admin = BooleanField('Права администратора') 
     submit = SubmitField('Сохранить изменения')
 
-    # user_id нужен для валидации уникальности username, исключая текущего редактируемого пользователя
     def __init__(self, original_username, *args, **kwargs):
         super(AdminEditUserForm, self).__init__(*args, **kwargs)
         self.original_username = original_username
@@ -129,5 +125,3 @@ class AdminEditUserForm(FlaskForm):
             user = User.query.filter_by(username=username.data).first()
             if user:
                 raise ValidationError('Это имя пользователя уже занято.')
-
-#--- END OF FILE forms.py ---
