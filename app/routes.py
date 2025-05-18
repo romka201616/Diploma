@@ -4,17 +4,17 @@ from flask import render_template, flash, redirect, url_for, request, jsonify, a
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
-from app import app, db
+from app import app, db # Импортируем app для логгера
 from app.forms import (
-    LoginForm, RegistrationForm, BoardForm, ColumnForm, CardForm, CommentForm, # Добавлена CommentForm
+    LoginForm, RegistrationForm, BoardForm, ColumnForm, CardForm, CommentForm, 
     InviteUserForm, UpdateAccountForm, ChangePasswordForm, UpdateAvatarForm, AdminEditUserForm
 )
-from app.models import User, Board, Column, Card, Comment # Добавлена Comment
+from app.models import User, Board, Column, Card, Comment 
 from sqlalchemy import or_
 import os
 from functools import wraps
 from wtforms import SelectField, SelectMultipleField
-from datetime import datetime # для форматирования времени
+from datetime import datetime
 
 
 # --- Декоратор для проверки прав администратора ---
@@ -240,9 +240,6 @@ def admin_delete_user(user_id):
         flash(f'Нельзя удалить пользователя {user_to_delete.username}, так как он владеет досками. Сначала удалите или переназначьте его доски.', 'warning')
         return redirect(url_for('admin_dashboard'))
 
-    # Комментарии пользователя удалятся каскадно благодаря настройкам в модели Comment.author
-    # Карточки, где пользователь был исполнителем, отвяжутся каскадно (из card_assignees)
-    # Доски, где пользователь был участником, отвяжутся
     username = user_to_delete.username
     db.session.delete(user_to_delete)
     db.session.commit()
@@ -276,15 +273,15 @@ def delete_board(board_id):
         return redirect(url_for('dashboard'))
 
     board_name = board_to_delete.name
-    db.session.delete(board_to_delete) # Каскадное удаление колонок, карточек, комментариев (через Card)
+    db.session.delete(board_to_delete) 
     db.session.commit()
     flash(f'Доска "{board_name}" удалена.', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/boards/<int:board_id>', methods=['GET', 'POST'])
-@app.route('/boards/<int:board_id>/cards/<int:card_id_in_url>', methods=['GET']) # Новый маршрут
+@app.route('/boards/<int:board_id>/cards/<int:card_id_in_url>', methods=['GET'])
 @login_required
-def view_board(board_id, card_id_in_url=None): # card_id_in_url теперь опциональный
+def view_board(board_id, card_id_in_url=None):
     board = Board.query.get_or_404(board_id)
     if not current_user.can_edit_board(board):
         flash('У вас нет доступа к этой доске.', 'danger')
@@ -305,7 +302,6 @@ def view_board(board_id, card_id_in_url=None): # card_id_in_url теперь о�
             db.session.add(new_column)
             db.session.commit()
             flash(f'Колонка "{new_column.name}" добавлена.', 'success')
-            # Если был card_id_in_url, сохраняем его в URL при редиректе
             redirect_url = url_for('view_board', board_id=board.id, card_id_in_url=card_id_in_url) if card_id_in_url else url_for('view_board', board_id=board.id)
             return redirect(redirect_url)
 
@@ -313,21 +309,19 @@ def view_board(board_id, card_id_in_url=None): # card_id_in_url теперь о�
     board_members_list = board.members.all() 
     is_owner = (current_user == board.owner)
     
-    # Проверяем, существует ли карточка, если ID передан в URL
     card_to_open = None
     if card_id_in_url:
-        card_to_open = Card.query.filter_by(id=card_id_in_url, column_id=Column.id).join(Column).filter(Column.board_id == board_id).first()
+        card_to_open_query = Card.query.join(Column).filter(Card.id == card_id_in_url, Column.board_id == board_id)
+        card_to_open = card_to_open_query.first() # Изменено
         if not card_to_open:
             flash(f'Карточка с ID {card_id_in_url} не найдена на этой доске.', 'warning')
-            # Редирект на URL доски без ID карточки
             return redirect(url_for('view_board', board_id=board_id))
-
 
     return render_template('board.html', title=f"Доска: {board.name}", board=board,
                            columns=columns, column_form=column_form, card_form=card_form,
                            invite_form=invite_form, comment_form=comment_form, 
                            board_members=board_members_list, is_owner=is_owner,
-                           card_id_to_open_on_load=card_to_open.id if card_to_open else None) # Передаем ID карточки для открытия
+                           card_id_to_open_on_load=card_to_open.id if card_to_open else None)
 
 
 @app.route('/boards/<int:board_id>/invite', methods=['POST'])
@@ -419,7 +413,7 @@ def delete_column(column_id):
         return redirect(url_for('view_board', board_id=board.id))
     
     column_name = column_to_delete.name
-    db.session.delete(column_to_delete) # Каскадное удаление карточек и их комментариев
+    db.session.delete(column_to_delete) 
     db.session.commit()
     flash(f'Колонка "{column_name}" удалена.', 'success')
     return redirect(url_for('view_board', board_id=board.id))
@@ -471,89 +465,118 @@ def edit_card(card_id):
     card = Card.query.get_or_404(card_id)
     column = card.column
     board = column.board
+
     if not current_user.can_edit_board(board):
-        flash('Нет прав для редактирования карточек на этой доске.', 'danger')
+        app.logger.warning(f"User {current_user.id} tried to edit card {card_id} without permission.")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify(success=False, error='Нет прав'), 403
+            return jsonify(success=False, error='Нет прав для редактирования этой карточки.'), 403
+        flash('Нет прав для редактирования карточек на этой доске.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
 
-    form_data = request.form if request.method == 'POST' else None
-    form = CardForm(form_data, obj=card if request.method == 'GET' else None)
+    form = CardForm(request.form if request.method == 'POST' else None) # Не используем obj=card для POST, чтобы форма брала данные из request.form
     _populate_assignee_choices(form, board)
-    
+
     if request.method == 'GET':
+        # Предзаполняем форму данными из карточки для GET-запроса
+        form.title.data = card.title
+        form.description.data = card.description
         form.assignees.data = [assignee.id for assignee in card.assignees.all()]
-
-    if form.validate_on_submit() and request.method == 'POST':
-        card.title = form.title.data
-        card.description = form.description.data
         
-        current_assignees = {user.id for user in card.assignees.all()}
-        selected_assignee_ids = set(form.assignees.data)
-
-        ids_to_remove = current_assignees - selected_assignee_ids
-        if ids_to_remove:
-            users_to_remove = User.query.filter(User.id.in_(ids_to_remove)).all()
-            for user in users_to_remove:
-                if user in card.assignees:
-                    card.assignees.remove(user)
-        
-        ids_to_add = selected_assignee_ids - current_assignees
-        if ids_to_add:
-            users_to_add = User.query.filter(User.id.in_(ids_to_add)).all()
-            for user in users_to_add:
-                if user not in card.assignees:
-                     card.assignees.append(user)
-        
-        db.session.commit()
-        
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest': # AJAX GET для модалки
             assignees_data = [{
                 'id': u.id, 
                 'username': u.username, 
                 'avatar_url': u.get_avatar()
             } for u in card.assignees.all()]
+            return jsonify(
+                success=True, 
+                card={
+                    'id': card.id, 
+                    'title': card.title, 
+                    'description': card.description or "",
+                    'assignees': assignees_data,
+                    'assignee_ids': [u.id for u in card.assignees.all()]
+                }
+            )
+        else: # Обычный GET, если бы использовалась страница edit_card.html
+            # current_title = card.title
+            # return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
+            # Поскольку edit_card.html удален (предположительно), редиректим на доску с открытой модалкой
+            flash('Для редактирования карточек используется модальное окно.', 'info')
+            return redirect(url_for('view_board', board_id=board.id, card_id_in_url=card.id))
 
-            return jsonify(success=True, card={
-                'id': card.id,
-                'title': card.title,
-                'description': card.description or "",
-                'assignees': assignees_data, 
-                'assignee_ids': [u.id for u in card.assignees.all()]
-            })
-        flash('Карточка обновлена.', 'success')
-        return redirect(url_for('view_board', board_id=board.id))
-    
-    if request.method == 'GET' and not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        current_title = card.title
-        return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
-    
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and form.errors and request.method == 'POST':
-        errors = {field: error[0] for field, error in form.errors.items()}
-        return jsonify(success=False, errors=errors), 400
-    
-    if request.method == 'POST' and form.errors:
-         flash('Пожалуйста, исправьте ошибки в форме.', 'danger')
-         current_title = form.title.data if form.title.data else card.title
-         return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
 
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.method == 'GET':
-         assignees_data = [{
-             'id': u.id, 
-             'username': u.username, 
-             'avatar_url': u.get_avatar()
-         } for u in card.assignees.all()]
-         return jsonify(
-             success=True, 
-             card={
-                 'id': card.id, 
-                 'title': card.title, 
-                 'description': card.description or "",
-                 'assignees': assignees_data,
-                 'assignee_ids': [u.id for u in card.assignees.all()]
-             },
-         )
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            try:
+                card.title = form.title.data
+                card.description = form.description.data
+                
+                # Обновление исполнителей
+                new_assignee_ids = set(form.assignees.data if form.assignees.data else [])
+                
+                # Удаляем тех, кого нет в новом списке
+                # Чтобы избежать проблемы с detached instance, работаем с ID
+                current_assignee_ids_on_card = {user.id for user in card.assignees}
+                
+                ids_to_remove_from_card = current_assignee_ids_on_card - new_assignee_ids
+                if ids_to_remove_from_card:
+                    users_to_remove = User.query.filter(User.id.in_(ids_to_remove_from_card)).all()
+                    for user in users_to_remove:
+                        if user in card.assignees: # Проверка, что пользователь действительно в коллекции
+                            card.assignees.remove(user)
+                
+                # Добавляем новых
+                ids_to_add_to_card = new_assignee_ids - current_assignee_ids_on_card
+                if ids_to_add_to_card:
+                    users_to_add = User.query.filter(User.id.in_(ids_to_add_to_card)).all()
+                    for user in users_to_add:
+                        if user not in card.assignees: # Проверка, что пользователя еще нет
+                             card.assignees.append(user)
+                
+                db.session.commit()
+                app.logger.info(f"Card {card.id} updated successfully by user {current_user.id}.")
+
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    assignees_data = [{
+                        'id': u.id, 
+                        'username': u.username, 
+                        'avatar_url': u.get_avatar()
+                    } for u in card.assignees.all()] # Запрашиваем снова после коммита
+
+                    return jsonify(success=True, card={
+                        'id': card.id,
+                        'title': card.title,
+                        'description': card.description or "",
+                        'assignees': assignees_data, 
+                        'assignee_ids': [u.id for u in card.assignees.all()]
+                    })
+                else: # Обычный POST (если бы использовалась страница)
+                    flash('Карточка обновлена.', 'success')
+                    return redirect(url_for('view_board', board_id=board.id))
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Error updating card {card.id}: {e}", exc_info=True)
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify(success=False, error="Внутренняя ошибка сервера при обновлении карточки."), 500
+                else:
+                    flash('Ошибка при обновлении карточки. Пожалуйста, попробуйте снова.', 'danger')
+                    # return render_template('edit_card.html', ...) # Если бы страница была
+                    return redirect(url_for('view_board', board_id=board.id, card_id_in_url=card.id))
+        else: # form not valid
+            app.logger.warning(f"Card {card.id} update form validation failed: {form.errors}")
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                errors = {field: error[0] for field, error in form.errors.items()}
+                return jsonify(success=False, errors=errors), 400
+            else: # Обычный POST с ошибками
+                flash('Пожалуйста, исправьте ошибки в форме.', 'danger')
+                # return render_template('edit_card.html', ...) # Если бы страница была
+                return redirect(url_for('view_board', board_id=board.id, card_id_in_url=card.id))
+
+    # Если дошли сюда, это непредвиденный случай (например, не GET и не POST)
+    app.logger.error(f"Unexpected state in edit_card for card {card_id}, method: {request.method}")
     return redirect(url_for('view_board', board_id=board.id))
+
 
 
 @app.route('/cards/<int:card_id>/delete', methods=['POST'])
@@ -569,7 +592,7 @@ def delete_card(card_id):
         return redirect(url_for('view_board', board_id=board.id))
 
     card_title = card_to_delete.title
-    db.session.delete(card_to_delete) # Комментарии удалятся каскадно
+    db.session.delete(card_to_delete) 
     db.session.commit()
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -607,7 +630,7 @@ def move_card(card_id):
 @login_required
 def get_comments(card_id):
     card = Card.query.get_or_404(card_id)
-    if not current_user.can_edit_board(card.column.board): # Доступ к доске = доступ к комментам
+    if not current_user.can_edit_board(card.column.board): 
         return jsonify(success=False, error="Нет доступа к комментариям этой карточки."), 403
     
     comments = card.comments.order_by(Comment.timestamp.asc()).all()
@@ -634,7 +657,7 @@ def add_comment(card_id):
     if not current_user.can_edit_board(card.column.board):
         return jsonify(success=False, error="Вы не можете комментировать на этой доске."), 403
 
-    form = CommentForm() # Данные придут из request.form (AJAX FormData)
+    form = CommentForm() 
     if form.validate_on_submit():
         comment = Comment(text=form.text.data, author=current_user, card_id=card.id)
         db.session.add(comment)
@@ -650,7 +673,7 @@ def add_comment(card_id):
             },
             'can_edit': True,
             'can_delete': True
-        }), 201 # Created
+        }), 201 
     
     errors = {field: error[0] for field, error in form.errors.items()}
     return jsonify(success=False, errors=errors), 400
@@ -663,16 +686,16 @@ def edit_comment(comment_id):
     if comment.author != current_user:
         return jsonify(success=False, error="Вы не можете редактировать этот комментарий."), 403
 
-    form = CommentForm() # Данные из request.form
+    form = CommentForm() 
     if form.validate_on_submit():
         comment.text = form.text.data
-        comment.timestamp = datetime.utcnow() # Обновляем время изменения (опционально)
+        comment.timestamp = datetime.utcnow() 
         db.session.commit()
         return jsonify(success=True, comment={
             'id': comment.id,
             'text': comment.text,
             'timestamp': comment.timestamp.strftime('%d.%m.%Y %H:%M'),
-             'author': { # На случай если JS захочет обновить всю карточку комментария
+             'author': { 
                 'id': comment.author.id,
                 'username': comment.author.username,
                 'avatar_url': comment.author.get_avatar()
@@ -690,7 +713,6 @@ def edit_comment(comment_id):
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
     if comment.author != current_user:
-        # Администратор тоже может удалять комментарии, если нужно - добавить current_user.is_admin
         return jsonify(success=False, error="Вы не можете удалить этот комментарий."), 403
     
     db.session.delete(comment)
