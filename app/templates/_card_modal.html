@@ -56,29 +56,30 @@
                         </h2>
                         <div id="collapseTags" class="accordion-collapse collapse" aria-labelledby="headingTags" data-bs-parent="#modalRightAccordion">
                             <div class="accordion-body">
-                                <form id="createTagFormModal" method="POST" action="" class="mb-3">
-                                    {# tag_form передается из view_board в _card_modal.html #}
+                                <form id="boardTagFormModal" method="POST" action="" data-current-tag-id=""> {# Изменено ID, добавлен data-атрибут #}
                                     {{ tag_form.hidden_tag() }} 
-                                    <small class="form-text text-muted d-block mb-2">Создать новый тег для этой доски:</small>
+                                    <h6 id="boardTagFormModalTitle" class="mb-2">Создать новый тег</h6> {# Заголовок для формы тега #}
                                     <div class="mb-2">
-                                        {{ tag_form.name.label(for="modalNewTagName", class="form-label visually-hidden") }}
-                                        {{ tag_form.name(class="form-control form-control-sm", id="modalNewTagName", placeholder="Название тега") }}
-                                        <div class="invalid-feedback" data-field-error="name" id="modalNewTagNameError"></div>
+                                        {{ tag_form.name.label(for="modalTagFormName", class="form-label visually-hidden") }}
+                                        {{ tag_form.name(class="form-control form-control-sm", id="modalTagFormName", placeholder="Название тега") }}
+                                        <div class="invalid-feedback" data-field-error="name" id="modalTagFormNameError"></div>
                                     </div>
                                     <div class="mb-2">
-                                         {{ tag_form.color.label(for="modalNewTagColor", class="form-label visually-hidden") }}
+                                         {{ tag_form.color.label(for="modalTagFormColor", class="form-label visually-hidden") }}
                                          <div class="input-group input-group-sm">
                                             <span class="input-group-text">Цвет</span>
-                                            {{ tag_form.color(class="form-control form-control-color", id="modalNewTagColor", type="color", title="Выберите цвет тега") }}
+                                            {{ tag_form.color(class="form-control form-control-color", id="modalTagFormColor", type="color", title="Выберите цвет тега") }}
                                          </div>
-                                        <div class="invalid-feedback" data-field-error="color" id="modalNewTagColorError"></div>
+                                        <div class="invalid-feedback" data-field-error="color" id="modalTagFormColorError"></div>
                                     </div>
-                                    {{ tag_form.submit_tag(class="btn btn-sm btn-outline-success w-100", id="submitNewTagBtn", value="Создать тег") }}
+                                    <div class="d-flex">
+                                        {{ tag_form.submit_tag(class="btn btn-sm btn-outline-success w-100", id="submitBoardTagBtn") }} {# ID кнопки изменен для ясности #}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="cancelEditBoardTagBtn" style="display: none;">Отмена</button>
+                                    </div>
                                 </form>
                                 <hr>
                                 <small class="form-text text-muted d-block mb-1">Существующие теги доски:</small>
                                 <div id="boardTagsListModal" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
-                                    <!-- Список тегов доски будет загружен сюда -->
                                     <div class="text-center p-2" id="boardTagsLoaderModal">
                                         <div class="spinner-border spinner-border-sm text-secondary" role="status">
                                             <span class="visually-hidden">Загрузка...</span>

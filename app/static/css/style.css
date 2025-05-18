@@ -61,16 +61,22 @@ body {
     padding: 0.5rem 0.75rem; /* Уменьшаем паддинги */
     font-size: 0.9em;
 }
-#boardTagsListModal .list-group-item .tag-color-preview {
+#boardTagsListModal .list-group-item .tag-color-preview { /* Применяем и здесь, если нужно */
     width: 10px;
     height: 10px;
 }
-#boardTagsListModal .btn-delete-tag-modal,
-#boardTagsListModal .btn-edit-tag-modal {
+#boardTagsListModal .btn-edit-board-tag,
+#boardTagsListModal .btn-delete-board-tag {
     padding: 0.1rem 0.3rem;
-    font-size: 0.8em;
-    line-height: 1;
+    font-size: 0.8em; /* Уменьшаем иконки, если они текстовые */
+    line-height: 1; /* Для лучшего вида текстовых иконок */
+    text-decoration: none; /* Убираем подчеркивание у ссылок-кнопок */
 }
+#boardTagsListModal .btn-edit-board-tag:hover,
+#boardTagsListModal .btn-delete-board-tag:hover {
+    text-decoration: none;
+}
+
 
 .form-control-color { /* Bootstrap 5.1+ has this, but for older versions or consistency */
     min-height: calc(1.5em + .5rem + 2px); /* Match sm input height */

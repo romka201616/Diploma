@@ -43,9 +43,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // Элементы для Тегов
         var modalCardTagsSelect = document.getElementById('modalCardTags');
         var modalSelectedTagsPreview = document.getElementById('modalSelectedTagsPreview');
-        var createTagFormModal = document.getElementById('createTagFormModal');
-        var modalNewTagName = document.getElementById('modalNewTagName');
-        var modalNewTagColor = document.getElementById('modalNewTagColor');
+        
+        var boardTagFormModal = document.getElementById('boardTagFormModal'); // Изменен ID
+        var boardTagFormModalTitle = document.getElementById('boardTagFormModalTitle');
+        var modalTagFormName = document.getElementById('modalTagFormName'); // Изменен ID
+        var modalTagFormColor = document.getElementById('modalTagFormColor'); // Изменен ID
+        var submitBoardTagBtn = document.getElementById('submitBoardTagBtn');
+        var cancelEditBoardTagBtn = document.getElementById('cancelEditBoardTagBtn');
+
         var boardTagsListModal = document.getElementById('boardTagsListModal');
         var boardTagsLoaderModal = document.getElementById('boardTagsLoaderModal');
 
@@ -78,7 +83,6 @@ document.addEventListener('DOMContentLoaded', function () {
             modalAssigneesSelect.addEventListener('change', updateModalAssigneesPreview);
         }
 
-        // Функция для обновления превью выбранных тегов в модалке
         function renderSelectedTagsPreviewModal() {
             if (!modalCardTagsSelect || !modalSelectedTagsPreview) return;
             modalSelectedTagsPreview.innerHTML = '';
@@ -97,7 +101,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 const tagPreviewEl = document.createElement('span');
                 tagPreviewEl.className = 'tag-preview-item';
-                tagPreviewEl.style.borderColor = tagColor; // Рамка в цвет тега
+                tagPreviewEl.style.borderColor = tagColor; 
                 
                 const colorIndicator = document.createElement('span');
                 colorIndicator.className = 'tag-color-preview';
@@ -133,19 +137,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 history.pushState({cardId: currentCardId}, `Карточка ${currentCardId}`, newUrl);
             }
 
-            // Очистка ошибок предыдущих форм
             modalForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
             modalForm.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-            if(createTagFormModal) {
-                createTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-                createTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-                createTagFormModal.reset();
-            }
+            
+            resetBoardTagForm(); // Сброс формы тегов доски при открытии модалки
+
             if(modalCommentTextError) modalCommentTextError.textContent = '';
             if(modalCommentText) modalCommentText.classList.remove('is-invalid');
 
-
-            // Загрузка данных карточки
             try {
                 const response = await fetch(`/cards/${currentCardId}/edit`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
                 if (!response.ok) throw new Error(`Failed to fetch card data: ${response.status}`);
@@ -159,7 +158,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     modalForm.action = `/cards/${currentCardId}/edit`;
                     deleteForm.action = `/cards/${currentCardId}/delete`;
 
-                    // Заполнение исполнителей
                     if (modalAssigneesSelect) {
                         Array.from(modalAssigneesSelect.options).forEach(option => {
                             option.selected = cardData.assignee_ids.includes(parseInt(option.value));
@@ -169,7 +167,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         updateModalAssigneesPreview();
                     }
                     
-                    // Заполнение тегов карточки и всех тегов доски
                     if (modalCardTagsSelect && data.board_tags) {
                         populateTagSelect(data.board_tags, cardData.tag_ids || []);
                     }
@@ -180,12 +177,8 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (error) {
                 console.error("Error fetching card data for modal:", error);
                 modalLabel.textContent = 'Ошибка загрузки карточки';
-                // Можно скрыть модалку или показать сообщение об ошибке
-                // cardModal.hide();
-                // return;
             }
             
-            // Загрузка списка тегов доски для управления (если еще не загружены с карточкой)
             fetchBoardTags(currentBoardId);
 
 
@@ -206,14 +199,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 if (commentCsrf) commentCsrf.value = csrfToken;
             }
-             // Установка CSRF для формы создания тега
-            if (createTagFormModal) {
-                let tagCsrf = createTagFormModal.querySelector('input[name="csrf_token"]');
+            if (boardTagFormModal) { // CSRF для формы тегов
+                let tagCsrf = boardTagFormModal.querySelector('input[name="csrf_token"]');
                  if (!tagCsrf && csrfToken){
                     tagCsrf = document.createElement('input');
                     tagCsrf.type = 'hidden';
                     tagCsrf.name = 'csrf_token';
-                    createTagFormModal.appendChild(tagCsrf);
+                    boardTagFormModal.appendChild(tagCsrf);
                 }
                 if(tagCsrf) tagCsrf.value = csrfToken;
             }
@@ -225,7 +217,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (modalCommentText) modalCommentText.classList.remove('is-invalid');
             if (modalCommentTextError) modalCommentTextError.textContent = '';
             if (modalSelectedTagsPreview) modalSelectedTagsPreview.innerHTML = '';
-            if (boardTagsListModal) boardTagsListModal.innerHTML = ''; // Очищаем список тегов доски
+            if (boardTagsListModal) boardTagsListModal.innerHTML = ''; 
+            resetBoardTagForm();
 
             if (currentBoardId) {
                 const boardUrl = `/boards/${currentBoardId}`;
@@ -259,7 +252,6 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(({ status, body }) => {
                 if (status === 200 && body.success) {
                     updateCardDisplay(body.card); 
-                    // cardModal.hide(); // Не закрываем, пользователь может захотеть еще что-то сделать
                 } else if (status === 400 && !body.success && body.errors) {
                     displayModalErrors(body.errors, modalForm);
                 } else {
@@ -277,10 +269,10 @@ document.addEventListener('DOMContentLoaded', function () {
              let deleteCsrfTokenEl = deleteForm.querySelector('input[name="csrf_token"]');
              let deleteCsrfToken = deleteCsrfTokenEl ? deleteCsrfTokenEl.value : null;
 
-             if (!deleteCsrfToken && csrfToken) { // Если в форме нет, но есть глобальный
+             if (!deleteCsrfToken && csrfToken) { 
                  if (deleteCsrfTokenEl) {
                     deleteCsrfTokenEl.value = csrfToken;
-                 } else { // Если даже инпута нет, создаем
+                 } else { 
                     deleteCsrfTokenEl = document.createElement('input');
                     deleteCsrfTokenEl.type = 'hidden';
                     deleteCsrfTokenEl.name = 'csrf_token';
@@ -308,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function () {
              .then(({ status, body }) => {
                   if (status === 200 && body.success) {
                       cardModal.hide(); 
-                      const cardIdToDelete = currentCardId; // Используем currentCardId
+                      const cardIdToDelete = currentCardId; 
                       const cardElementToDelete = document.getElementById(`card-${cardIdToDelete}`);
                       if(cardElementToDelete) {
                           const columnList = cardElementToDelete.closest('.card-list');
@@ -326,32 +318,25 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         function displayModalErrors(errors, targetForm) {
-            // Сначала очищаем все предыдущие ошибки в этой форме
             targetForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-            targetForm.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+            targetForm.querySelectorAll('.invalid-feedback').forEach(el => { el.textContent = ''; el.style.display = 'none';});
         
             for (const field in errors) {
-                // Ищем по name, потом по id, если name нет (например, для кастомных фидбеков)
-                const inputElement = targetForm.querySelector(`[name="${field}"]`) || targetForm.querySelector(`#modal${field.charAt(0).toUpperCase() + field.slice(1)}`);
-                // Ищем фидбек элемент по data-field-error или по стандартному id
-                const errorElementId = `modal${field.charAt(0).toUpperCase() + field.slice(1)}Error`;
+                const inputElement = targetForm.querySelector(`[name="${field}"]`) || targetForm.querySelector(`#modal${field.charAt(0).toUpperCase() + field.slice(1)}`) || targetForm.querySelector(`#modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}`); // Добавлено для формы тегов
+                const errorElementId = `modal${field.charAt(0).toUpperCase() + field.slice(1)}Error` // Для основной формы карточки
+                                  || `modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}Error`; // Для формы тега
                 let errorFeedbackElement = targetForm.querySelector(`.invalid-feedback[data-field-error="${field}"]`) || document.getElementById(errorElementId);
         
                 if (inputElement) {
                     inputElement.classList.add('is-invalid');
-                    // Если фидбек элемент не нашелся по data-атрибуту или ID, пытаемся найти его как следующий элемент .invalid-feedback
                     if (!errorFeedbackElement) {
-                        errorFeedbackElement = inputElement.nextElementSibling;
-                        if (errorFeedbackElement && !errorFeedbackElement.classList.contains('invalid-feedback')) {
-                            errorFeedbackElement = null; // Это не тот фидбек, который нам нужен
-                        }
+                        errorFeedbackElement = inputElement.closest('.mb-2, .mb-3').querySelector('.invalid-feedback'); // Ищем внутри родительского блока
                     }
                 }
                 if (errorFeedbackElement) {
                     errorFeedbackElement.textContent = errors[field];
-                    errorFeedbackElement.style.display = 'block'; // Убедимся, что он видим
+                    errorFeedbackElement.style.display = 'block'; 
                 } else {
-                    // Если фидбек элемент совсем не найден, можно вывести ошибку в консоль или alert
                     console.warn(`No feedback element found for field "${field}" in form ${targetForm.id}`);
                 }
             }
@@ -362,7 +347,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const tagsDisplayContainer = cardElement.querySelector('.card-tags-display');
             if (!tagsDisplayContainer) return;
 
-            tagsDisplayContainer.innerHTML = ''; // Очищаем старые теги
+            tagsDisplayContainer.innerHTML = ''; 
             if (tags && tags.length > 0) {
                 tags.forEach(tag => {
                     const tagBadge = document.createElement('span');
@@ -382,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cardElement.setAttribute('data-card-title', cardData.title);
             cardElement.setAttribute('data-card-description', cardData.description || '');
             cardElement.setAttribute('data-card-assignees', JSON.stringify(cardData.assignees || []));
-            cardElement.setAttribute('data-card-tags', JSON.stringify(cardData.tags || [])); // Обновляем теги
+            cardElement.setAttribute('data-card-tags', JSON.stringify(cardData.tags || [])); 
 
 
             const titleDisplay = cardElement.querySelector('.card-title-display');
@@ -432,10 +417,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     assigneesListDiv.appendChild(noAssigneePlaceholder);
                 }
             }
-            updateTagsOnCardElement(cardElement, cardData.tags); // Обновляем теги на карточке
+            updateTagsOnCardElement(cardElement, cardData.tags); 
         }
 
-        // --- Функции для комментариев (остаются без изменений) ---
         function fetchComments(cardIdToFetch) {
             if (!cardIdToFetch || !commentsListContainer) return;
             if (commentsLoader) commentsLoader.style.display = 'block';
@@ -694,10 +678,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // --- Функции для Тегов ---
-        async function fetchBoardTags(boardId) {
+        async function fetchBoardTags(boardId, selectTagIdToEdit = null) {
             if (!boardId || !boardTagsListModal || !boardTagsLoaderModal) return;
             boardTagsLoaderModal.style.display = 'block';
-            boardTagsListModal.innerHTML = ''; // Очищаем перед загрузкой
+            boardTagsListModal.innerHTML = '';
 
             try {
                 const response = await fetch(`/api/boards/${boardId}/tags`);
@@ -706,6 +690,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 boardTagsLoaderModal.style.display = 'none';
                 if (data.success) {
                     renderBoardTagsList(data.tags);
+                    if (selectTagIdToEdit) { // Если нужно подсветить или как-то выделить тег для редактирования
+                        const tagToEditEl = boardTagsListModal.querySelector(`.list-group-item[data-tag-id="${selectTagIdToEdit}"]`);
+                        // тут можно добавить класс или фокус
+                    }
                 } else {
                     boardTagsListModal.innerHTML = `<div class="list-group-item text-danger small">${data.error || 'Не удалось загрузить теги доски.'}</div>`;
                 }
@@ -725,10 +713,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             tags.forEach(tag => {
                 const item = document.createElement('div');
-                item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                item.className = 'list-group-item d-flex justify-content-between align-items-center py-1 px-2'; // Уменьшил паддинги
                 item.dataset.tagId = tag.id;
+                item.dataset.tagName = tag.name;
+                item.dataset.tagColor = tag.color;
                 
                 const tagInfo = document.createElement('span');
+                tagInfo.className = 'd-flex align-items-center';
                 const colorPreview = document.createElement('span');
                 colorPreview.className = 'tag-color-preview me-2';
                 colorPreview.style.backgroundColor = tag.color;
@@ -736,12 +727,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 tagInfo.append(escapeHtml(tag.name));
                 
                 const actions = document.createElement('div');
-                // Кнопки редактирования/удаления тега (пока не активны, но можно добавить обработчики)
-                // const editBtn = document.createElement('button');
-                // editBtn.className = 'btn btn-link btn-sm p-0 me-2 btn-edit-tag-modal'; editBtn.innerHTML = '✏️'; editBtn.dataset.tagId = tag.id;
-                // const deleteBtn = document.createElement('button');
-                // deleteBtn.className = 'btn btn-link btn-sm p-0 text-danger btn-delete-tag-modal'; deleteBtn.innerHTML = '🗑️'; deleteBtn.dataset.tagId = tag.id;
-                // actions.appendChild(editBtn); actions.appendChild(deleteBtn);
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-link btn-sm p-0 me-2 btn-edit-board-tag'; 
+                editBtn.innerHTML = '✏️'; 
+                editBtn.title = "Редактировать тег";
+                editBtn.dataset.tagId = tag.id;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-link btn-sm p-0 text-danger btn-delete-board-tag'; 
+                deleteBtn.innerHTML = '✖';  // Используем крестик для удаления
+                deleteBtn.title = "Удалить тег";
+                deleteBtn.dataset.tagId = tag.id;
+
+                actions.appendChild(editBtn); 
+                actions.appendChild(deleteBtn);
 
                 item.appendChild(tagInfo);
                 item.appendChild(actions);
@@ -751,73 +750,203 @@ document.addEventListener('DOMContentLoaded', function () {
 
         function populateTagSelect(allBoardTags, selectedCardTagIds = []) {
             if (!modalCardTagsSelect) return;
-            modalCardTagsSelect.innerHTML = ''; // Очищаем старые опции
+            const currentSelections = Array.from(modalCardTagsSelect.selectedOptions).map(opt => opt.value); // Сохраняем текущий выбор, если есть
+            modalCardTagsSelect.innerHTML = ''; 
         
             allBoardTags.forEach(tag => {
                 const option = document.createElement('option');
                 option.value = tag.id;
                 option.textContent = tag.name;
-                option.dataset.color = tag.color; // Сохраняем цвет для превью
-                if (selectedCardTagIds.includes(tag.id)) {
+                option.dataset.color = tag.color; 
+                if (selectedCardTagIds.includes(tag.id) || currentSelections.includes(tag.id.toString())) { // Восстанавливаем выбор
                     option.selected = true;
                 }
                 modalCardTagsSelect.appendChild(option);
             });
-            renderSelectedTagsPreviewModal(); // Обновляем превью после заполнения
+            renderSelectedTagsPreviewModal(); 
         }
 
-        if (createTagFormModal) {
-            createTagFormModal.addEventListener('submit', function(event) {
+        function resetBoardTagForm() {
+            if (!boardTagFormModal) return;
+            boardTagFormModal.reset();
+            boardTagFormModal.dataset.currentTagId = ''; // Сбрасываем ID редактируемого тега
+            if (boardTagFormModalTitle) boardTagFormModalTitle.textContent = 'Создать новый тег';
+            if (submitBoardTagBtn) submitBoardTagBtn.textContent = 'Создать тег';
+            if (cancelEditBoardTagBtn) cancelEditBoardTagBtn.style.display = 'none';
+            // Очистка ошибок
+            boardTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+            boardTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => {el.textContent = ''; el.style.display = 'none';});
+        }
+        if(cancelEditBoardTagBtn) {
+            cancelEditBoardTagBtn.addEventListener('click', resetBoardTagForm);
+        }
+
+
+        if (boardTagFormModal) { // Переименовано с createTagFormModal
+            boardTagFormModal.addEventListener('submit', async function(event) {
                 event.preventDefault();
                 if (!currentBoardId || !csrfToken) {
-                    alert("Ошибка: Не удалось определить доску или CSRF токен для создания тега.");
+                    alert("Ошибка: Не удалось определить доску или CSRF токен для операции с тегом.");
                     return;
                 }
                 
-                const formData = new FormData(createTagFormModal);
+                const formData = new FormData(boardTagFormModal);
                 if (!formData.has('csrf_token') && csrfToken) {
                     formData.append('csrf_token', csrfToken);
                 }
 
-                fetch(`/api/boards/${currentBoardId}/tags/create`, {
-                    method: 'POST',
-                    headers: {'X-Requested-With': 'XMLHttpRequest'},
-                    body: formData
-                })
-                .then(response => response.json().then(data => ({status: response.status, body: data})))
-                .then(({status, body}) => {
-                    // Очистка ошибок формы создания тега
-                    createTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-                    createTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+                const tagIdToEdit = boardTagFormModal.dataset.currentTagId;
+                const url = tagIdToEdit ? `/api/tags/${tagIdToEdit}/edit` : `/api/boards/${currentBoardId}/tags/create`;
+                const method = 'POST'; // Flask-WTF обычно ожидает POST
 
-                    if (status === 201 && body.success && body.tag) {
-                        createTagFormModal.reset(); // Сбрасываем форму
-                        // Добавляем новый тег в селект для карточки
-                        const newOption = document.createElement('option');
-                        newOption.value = body.tag.id;
-                        newOption.textContent = body.tag.name;
-                        newOption.dataset.color = body.tag.color;
-                        newOption.selected = true; // Автоматически выбираем новый тег
-                        if(modalCardTagsSelect) modalCardTagsSelect.appendChild(newOption);
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        body: formData
+                    });
+                    const bodyData = await response.json(); // Читаем тело ответа один раз
+                    const status = response.status;
+                
+                    boardTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+                    boardTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+
+                    if ((status === 201 || status === 200) && bodyData.success && bodyData.tag) {
+                        resetBoardTagForm(); 
+                        await fetchBoardTags(currentBoardId); // Обновляем список тегов доски
                         
-                        renderSelectedTagsPreviewModal(); // Обновляем превью выбранных тегов
-                        fetchBoardTags(currentBoardId); // Обновляем список тегов доски
+                        // Обновляем селект тегов на карточке
+                        const boardTagsResponse = await fetch(`/api/boards/${currentBoardId}/tags`);
+                        const boardTagsData = await boardTagsResponse.json();
+                        if (boardTagsData.success) {
+                            const currentSelectedCardTagIds = Array.from(modalCardTagsSelect.selectedOptions).map(opt => parseInt(opt.value));
+                             // Если создавали новый тег, добавляем его ID к выбранным, чтобы он остался выделенным
+                            if (status === 201 && !currentSelectedCardTagIds.includes(bodyData.tag.id)) {
+                                currentSelectedCardTagIds.push(bodyData.tag.id);
+                            }
+                            populateTagSelect(boardTagsData.tags, currentSelectedCardTagIds);
+                        }
+                        // Обновить теги на всех карточках на доске
+                        updateAllCardTagDisplays(bodyData.tag.id, bodyData.tag, (status === 200 && tagIdToEdit)); // true если это было редактирование
                         
-                    } else if (status === 400 && !body.success && body.errors) {
-                        displayModalErrors(body.errors, createTagFormModal);
+                    } else if (status === 400 && !bodyData.success && bodyData.errors) {
+                        displayModalErrors(bodyData.errors, boardTagFormModal);
                     } else {
-                        alert('Ошибка создания тега: ' + (body.error || body.message || "Неизвестная ошибка"));
+                        alert(`Ошибка ${tagIdToEdit ? 'редактирования' : 'создания'} тега: ` + (bodyData.error || bodyData.message || "Неизвестная ошибка"));
                     }
-                })
-                .catch(error => {
-                    console.error("Error creating tag:", error);
-                    alert("Сетевая ошибка при создании тега.");
-                });
+                } catch (error) {
+                    console.error(`Error ${tagIdToEdit ? 'editing' : 'creating'} tag:`, error);
+                    alert(`Сетевая ошибка при ${tagIdToEdit ? 'редактировании' : 'создании'} тега.`);
+                }
+            });
+        }
+        
+        // Обработчики для кнопок редактирования и удаления тегов доски
+        if (boardTagsListModal) {
+            boardTagsListModal.addEventListener('click', async function(event){
+                const target = event.target;
+                const editButton = target.closest('.btn-edit-board-tag');
+                const deleteButton = target.closest('.btn-delete-board-tag');
+
+                if (editButton) {
+                    const tagItem = editButton.closest('.list-group-item');
+                    const tagId = tagItem.dataset.tagId;
+                    const tagName = tagItem.dataset.tagName;
+                    const tagColor = tagItem.dataset.tagColor;
+
+                    if (boardTagFormModalTitle) boardTagFormModalTitle.textContent = `Редактировать тег: ${escapeHtml(tagName)}`;
+                    if (modalTagFormName) modalTagFormName.value = tagName;
+                    if (modalTagFormColor) modalTagFormColor.value = tagColor;
+                    if (submitBoardTagBtn) submitBoardTagBtn.textContent = 'Сохранить изменения';
+                    if (boardTagFormModal) boardTagFormModal.dataset.currentTagId = tagId;
+                    if (cancelEditBoardTagBtn) cancelEditBoardTagBtn.style.display = 'inline-block';
+                    
+                    // Очистка ошибок предыдущей валидации
+                    boardTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+                    boardTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => { el.textContent = ''; el.style.display = 'none'; });
+                }
+
+                if (deleteButton) {
+                    const tagItem = deleteButton.closest('.list-group-item');
+                    const tagId = tagItem.dataset.tagId;
+                    const tagName = tagItem.dataset.tagName;
+
+                    if (!confirm(`Удалить тег "${escapeHtml(tagName)}"? Он будет удален со всех карточек.`)) return;
+                    if (!csrfToken) { alert("Ошибка: CSRF токен."); return; }
+
+                    try {
+                        const response = await fetch(`/api/tags/${tagId}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRFToken': csrfToken
+                            }
+                        });
+                        const body = await response.json();
+                        if (response.ok && body.success) {
+                            await fetchBoardTags(currentBoardId); // Обновить список тегов доски
+                           
+                            // Обновить селект тегов на карточке
+                            const boardTagsResponse = await fetch(`/api/boards/${currentBoardId}/tags`);
+                            const boardTagsData = await boardTagsResponse.json();
+                            if (boardTagsData.success) {
+                                const currentSelectedCardTagIds = Array.from(modalCardTagsSelect.selectedOptions)
+                                                                     .map(opt => parseInt(opt.value))
+                                                                     .filter(id => id !== parseInt(tagId)); // Удаляем ID удаленного тега
+                                populateTagSelect(boardTagsData.tags, currentSelectedCardTagIds);
+                            }
+                             // Обновить теги на всех карточках на доске
+                            updateAllCardTagDisplays(tagId, null, false, true); // true для isDeletion
+                        } else {
+                            alert('Ошибка удаления тега: ' + (body.error || body.message || "Неизвестная ошибка."));
+                        }
+                    } catch (error) {
+                        console.error("Error deleting board tag:", error);
+                        alert("Сетевая ошибка при удалении тега.");
+                    }
+                }
+            });
+        }
+
+        function updateAllCardTagDisplays(tagId, updatedTagData, isEdit = false, isDeletion = false) {
+            document.querySelectorAll('.draggable-card').forEach(cardEl => {
+                let cardTagsJson = cardEl.getAttribute('data-card-tags');
+                if (!cardTagsJson) return;
+
+                try {
+                    let cardTags = JSON.parse(cardTagsJson);
+                    let changed = false;
+
+                    if (isDeletion) {
+                        const initialLength = cardTags.length;
+                        cardTags = cardTags.filter(t => t.id !== parseInt(tagId));
+                        if (cardTags.length !== initialLength) changed = true;
+                    } else if (isEdit && updatedTagData) { // Редактирование
+                        const tagIndex = cardTags.findIndex(t => t.id === parseInt(tagId));
+                        if (tagIndex > -1) {
+                            cardTags[tagIndex].name = updatedTagData.name;
+                            cardTags[tagIndex].color = updatedTagData.color;
+                            changed = true;
+                        }
+                    } else if (!isEdit && !isDeletion && updatedTagData) { // Добавление нового тега (напрямую к карточке, если нужно)
+                        // Этот сценарий обычно обрабатывается через сохранение карточки,
+                        // но если тег создается и сразу должен появиться на текущей открытой карточке (если выбран)
+                        // то это обработается при следующем сохранении карточки.
+                        // Либо, если нужно немедленно, то это сложнее, т.к. надо знать, выбран ли он для текущей карты.
+                    }
+
+
+                    if (changed) {
+                        cardEl.setAttribute('data-card-tags', JSON.stringify(cardTags));
+                        updateTagsOnCardElement(cardEl, cardTags);
+                    }
+                } catch (e) {
+                    console.error("Error parsing or updating card tags on element:", e);
+                }
             });
         }
 
 
-        // --- Обработка URL и открытие модалки при загрузке страницы ---
         function checkUrlAndOpenModal() {
             const path = window.location.pathname;
             const match = path.match(/\/boards\/(\d+)\/cards\/(\d+)/);
@@ -829,13 +958,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     currentCardId = urlCardId; 
 
                     const cardElement = document.getElementById(`card-${urlCardId}`);
-                    // Используем cardElement для передачи в cardModal.show, чтобы 'show.bs.modal' сработал корректно
-                    // Логика загрузки данных карточки и тегов теперь внутри 'show.bs.modal'
                     if (cardElement) {
                         cardModal.show(cardElement); 
                     } else {
-                        // Если элемента нет, значит это прямой заход или карточка невидима.
-                        // Открываем модалку без relatedTarget. 'show.bs.modal' использует currentCardId.
                         cardModal.show(); 
                     }
                 }
@@ -855,7 +980,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     } 
 
-    // --- Drag-and-drop логика (без изменений) ---
     const cardLists = document.querySelectorAll('.card-list');
     const csrfTokenForDrag = csrfToken; 
 
