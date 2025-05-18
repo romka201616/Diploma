@@ -104,7 +104,7 @@
 
 
 <div class="container-fluid px-0">
-    <div class="row flex-nowrap overflow-auto pb-3" id="boardColumnsContainer">
+    <div class="row flex-nowrap overflow-auto pb-3" id="boardColumnsContainer" data-board-id="{{ board.id }}">
         {% for column in columns %}
         <div class="col-md-4 col-lg-3 column-drag-container">
             <div class="card bg-light mb-3 h-100">
@@ -127,6 +127,11 @@
                         {% for assignee in card.assignees.all() %}
                             {% set _ = card_assignees_json.append({'id': assignee.id, 'username': assignee.username, 'avatar_url': assignee.get_avatar()}) %}
                         {% endfor %}
+                        {% set card_tags_json = [] %}
+                        {% for tag_item in card.tags.all() %}
+                            {% set _ = card_tags_json.append({'id': tag_item.id, 'name': tag_item.name, 'color': tag_item.color}) %}
+                        {% endfor %}
+
                         <div class="list-group-item list-group-item-action card-item-clickable py-2 px-3 draggable-card"
                              data-bs-toggle="modal"
                              data-bs-target="#cardDetailModal"
@@ -136,7 +141,13 @@
                              data-edit-url="{{ url_for('edit_card', card_id=card.id) }}"
                              data-delete-url="{{ url_for('delete_card', card_id=card.id) }}"
                              data-card-assignees='{{ card_assignees_json|tojson }}'
+                             data-card-tags='{{ card_tags_json|tojson }}' {# Передаем теги карточки #}
                              id="card-{{ card.id }}">
+                            <div class="card-tags-display mb-1"> {# Контейнер для тегов #}
+                                {% for tag_item in card.tags.all() %}
+                                <span class="tag-badge me-1" style="background-color: {{ tag_item.color }}" title="{{ tag_item.name }}"></span>
+                                {% endfor %}
+                            </div>
                             <div class="d-flex w-100 justify-content-between">
                                 <h6 class="mb-1 card-title-display">{{ card.title }}</h6>
                             </div>
@@ -168,6 +179,7 @@
                         </div>
                          {{ card_form.description(style="display:none;") }}
                          {{ card_form.assignees(style="display:none;") }}
+                         {{ card_form.tags(style="display:none;") }} {# Скрытое поле для тегов, если нужно для не-JS создания #}
                         {{ card_form.submit_card(class="btn btn-sm btn-outline-primary w-100", value="+ Добавить") }}
                          {% if card_form.errors and request.form.get('column_id') == column.id|string %}
                               <div class="mt-2 text-danger small">
@@ -210,14 +222,13 @@
     </div>
 </div>
 
-{# Включаем модальное окно из отдельного файла #}
-{% include '_card_modal.html' %}
+{# Включаем модальное окно из отдельного файла, передаем tag_form #}
+{% include '_card_modal.html' with context %}
 
 {% endblock %}
 
 {% block scripts %}
 {{ super() }} {# Bootstrap JS #}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" integrity="sha512-Eezs+g9Lq4TCCq0wae01s9PuNWzHYoCMkE97e2qdkYthpI0pzC3UGB03lgEHn2XM85hDOUF6qgqqszs+iXU4UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-{# CSRF токен теперь будет браться из форм на основной странице board.html, а не из модалки, если она была бы здесь #}
 <script src="{{ url_for('static', filename='js/board_logic.js') }}"></script> 
 {% endblock %}

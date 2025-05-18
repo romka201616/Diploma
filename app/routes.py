@@ -4,13 +4,14 @@ from flask import render_template, flash, redirect, url_for, request, jsonify, a
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
-from app import app, db # Импортируем app для логгера
+from app import app, db 
 from app.forms import (
     LoginForm, RegistrationForm, BoardForm, ColumnForm, CardForm, CommentForm, 
-    InviteUserForm, UpdateAccountForm, ChangePasswordForm, UpdateAvatarForm, AdminEditUserForm
+    InviteUserForm, UpdateAccountForm, ChangePasswordForm, UpdateAvatarForm, AdminEditUserForm,
+    TagForm # Добавлена TagForm
 )
-from app.models import User, Board, Column, Card, Comment 
-from sqlalchemy import or_
+from app.models import User, Board, Column, Card, Comment, Tag # Добавлена Tag
+from sqlalchemy import or_, exc
 import os
 from functools import wraps
 from wtforms import SelectField, SelectMultipleField
@@ -33,6 +34,12 @@ def _populate_assignee_choices(form, board):
     choices_for_multiple = [(user.id, user.username) for user in eligible_users]
     if hasattr(form, 'assignees') and isinstance(form.assignees, SelectMultipleField):
         form.assignees.choices = choices_for_multiple
+
+# --- Helper function to populate tag choices ---
+def _populate_tag_choices(form, board):
+    if hasattr(form, 'tags') and isinstance(form.tags, SelectMultipleField):
+        board_tags = board.tags.order_by(Tag.name).all()
+        form.tags.choices = [(tag.id, tag.name) for tag in board_tags]
 
 
 @app.route('/')
@@ -291,8 +298,10 @@ def view_board(board_id, card_id_in_url=None):
     card_form = CardForm() 
     invite_form = InviteUserForm()
     comment_form = CommentForm() 
+    tag_form = TagForm() # Форма для создания тега
 
     _populate_assignee_choices(card_form, board) 
+    _populate_tag_choices(card_form, board) # Заполняем теги для CardForm
 
     if request.method == 'POST': 
         if column_form.validate_on_submit() and 'submit_column' in request.form: 
@@ -312,14 +321,14 @@ def view_board(board_id, card_id_in_url=None):
     card_to_open = None
     if card_id_in_url:
         card_to_open_query = Card.query.join(Column).filter(Card.id == card_id_in_url, Column.board_id == board_id)
-        card_to_open = card_to_open_query.first() # Изменено
+        card_to_open = card_to_open_query.first()
         if not card_to_open:
             flash(f'Карточка с ID {card_id_in_url} не найдена на этой доске.', 'warning')
             return redirect(url_for('view_board', board_id=board_id))
 
     return render_template('board.html', title=f"Доска: {board.name}", board=board,
                            columns=columns, column_form=column_form, card_form=card_form,
-                           invite_form=invite_form, comment_form=comment_form, 
+                           invite_form=invite_form, comment_form=comment_form, tag_form=tag_form,
                            board_members=board_members_list, is_owner=is_owner,
                            card_id_to_open_on_load=card_to_open.id if card_to_open else None)
 
@@ -430,6 +439,7 @@ def create_card(column_id):
 
     card_form = CardForm(request.form) 
     _populate_assignee_choices(card_form, board)
+    _populate_tag_choices(card_form, board) # Заполняем теги
 
     if card_form.validate_on_submit():
         new_card = Card(
@@ -443,6 +453,12 @@ def create_card(column_id):
             for user in assignees_to_add:
                 new_card.assignees.append(user)
         
+        selected_tag_ids = card_form.tags.data
+        if selected_tag_ids:
+            tags_to_add = Tag.query.filter(Tag.id.in_(selected_tag_ids), Tag.board_id == board.id).all()
+            for tag in tags_to_add:
+                new_card.tags.append(tag)
+
         db.session.add(new_card)
         db.session.commit()
         flash(f'Карточка "{new_card.title}" добавлена в колонку "{column.name}".', 'success')
@@ -473,21 +489,22 @@ def edit_card(card_id):
         flash('Нет прав для редактирования карточек на этой доске.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
 
-    form = CardForm(request.form if request.method == 'POST' else None) # Не используем obj=card для POST, чтобы форма брала данные из request.form
+    form = CardForm(request.form if request.method == 'POST' else None) 
     _populate_assignee_choices(form, board)
+    _populate_tag_choices(form, board) # Заполняем теги
 
     if request.method == 'GET':
-        # Предзаполняем форму данными из карточки для GET-запроса
         form.title.data = card.title
         form.description.data = card.description
         form.assignees.data = [assignee.id for assignee in card.assignees.all()]
+        form.tags.data = [tag.id for tag in card.tags.all()] # Теги для GET
         
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest': # AJAX GET для модалки
-            assignees_data = [{
-                'id': u.id, 
-                'username': u.username, 
-                'avatar_url': u.get_avatar()
-            } for u in card.assignees.all()]
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest': 
+            assignees_data = [{'id': u.id, 'username': u.username, 'avatar_url': u.get_avatar()} for u in card.assignees.all()]
+            tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in card.tags.all()]
+            
+            board_tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in board.tags.order_by(Tag.name).all()]
+
             return jsonify(
                 success=True, 
                 card={
@@ -495,13 +512,13 @@ def edit_card(card_id):
                     'title': card.title, 
                     'description': card.description or "",
                     'assignees': assignees_data,
-                    'assignee_ids': [u.id for u in card.assignees.all()]
-                }
+                    'assignee_ids': [u.id for u in card.assignees.all()],
+                    'tags': tags_data, # Текущие теги карточки
+                    'tag_ids': [t.id for t in card.tags.all()] # ID текущих тегов карточки
+                },
+                board_tags=board_tags_data # Все теги доски
             )
-        else: # Обычный GET, если бы использовалась страница edit_card.html
-            # current_title = card.title
-            # return render_template('edit_card.html', title='Редактировать карточку', form=form, card_id=card_id, board_id=board.id, current_title=current_title)
-            # Поскольку edit_card.html удален (предположительно), редиректим на доску с открытой модалкой
+        else: 
             flash('Для редактирования карточек используется модальное окно.', 'info')
             return redirect(url_for('view_board', board_id=board.id, card_id_in_url=card.id))
 
@@ -514,44 +531,57 @@ def edit_card(card_id):
                 
                 # Обновление исполнителей
                 new_assignee_ids = set(form.assignees.data if form.assignees.data else [])
-                
-                # Удаляем тех, кого нет в новом списке
-                # Чтобы избежать проблемы с detached instance, работаем с ID
                 current_assignee_ids_on_card = {user.id for user in card.assignees}
                 
                 ids_to_remove_from_card = current_assignee_ids_on_card - new_assignee_ids
                 if ids_to_remove_from_card:
                     users_to_remove = User.query.filter(User.id.in_(ids_to_remove_from_card)).all()
                     for user in users_to_remove:
-                        if user in card.assignees: # Проверка, что пользователь действительно в коллекции
+                        if user in card.assignees: 
                             card.assignees.remove(user)
                 
-                # Добавляем новых
                 ids_to_add_to_card = new_assignee_ids - current_assignee_ids_on_card
                 if ids_to_add_to_card:
                     users_to_add = User.query.filter(User.id.in_(ids_to_add_to_card)).all()
                     for user in users_to_add:
-                        if user not in card.assignees: # Проверка, что пользователя еще нет
+                        if user not in card.assignees: 
                              card.assignees.append(user)
+
+                # Обновление тегов
+                new_tag_ids = set(form.tags.data if form.tags.data else [])
+                current_tag_ids_on_card = {tag.id for tag in card.tags}
+
+                tag_ids_to_remove = current_tag_ids_on_card - new_tag_ids
+                if tag_ids_to_remove:
+                    tags_to_remove_objs = Tag.query.filter(Tag.id.in_(tag_ids_to_remove)).all()
+                    for tag_obj in tags_to_remove_objs:
+                        if tag_obj in card.tags:
+                            card.tags.remove(tag_obj)
+                
+                tag_ids_to_add = new_tag_ids - current_tag_ids_on_card
+                if tag_ids_to_add:
+                    tags_to_add_objs = Tag.query.filter(Tag.id.in_(tag_ids_to_add), Tag.board_id == board.id).all()
+                    for tag_obj in tags_to_add_objs:
+                        if tag_obj not in card.tags:
+                            card.tags.append(tag_obj)
                 
                 db.session.commit()
                 app.logger.info(f"Card {card.id} updated successfully by user {current_user.id}.")
 
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    assignees_data = [{
-                        'id': u.id, 
-                        'username': u.username, 
-                        'avatar_url': u.get_avatar()
-                    } for u in card.assignees.all()] # Запрашиваем снова после коммита
+                    assignees_data = [{'id': u.id, 'username': u.username, 'avatar_url': u.get_avatar()} for u in card.assignees.all()]
+                    tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in card.tags.all()]
 
                     return jsonify(success=True, card={
                         'id': card.id,
                         'title': card.title,
                         'description': card.description or "",
                         'assignees': assignees_data, 
-                        'assignee_ids': [u.id for u in card.assignees.all()]
+                        'assignee_ids': [u.id for u in card.assignees.all()],
+                        'tags': tags_data,
+                        'tag_ids': [t.id for t in card.tags.all()]
                     })
-                else: # Обычный POST (если бы использовалась страница)
+                else: 
                     flash('Карточка обновлена.', 'success')
                     return redirect(url_for('view_board', board_id=board.id))
             except Exception as e:
@@ -561,19 +591,16 @@ def edit_card(card_id):
                     return jsonify(success=False, error="Внутренняя ошибка сервера при обновлении карточки."), 500
                 else:
                     flash('Ошибка при обновлении карточки. Пожалуйста, попробуйте снова.', 'danger')
-                    # return render_template('edit_card.html', ...) # Если бы страница была
                     return redirect(url_for('view_board', board_id=board.id, card_id_in_url=card.id))
-        else: # form not valid
+        else: 
             app.logger.warning(f"Card {card.id} update form validation failed: {form.errors}")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 errors = {field: error[0] for field, error in form.errors.items()}
                 return jsonify(success=False, errors=errors), 400
-            else: # Обычный POST с ошибками
+            else: 
                 flash('Пожалуйста, исправьте ошибки в форме.', 'danger')
-                # return render_template('edit_card.html', ...) # Если бы страница была
                 return redirect(url_for('view_board', board_id=board.id, card_id_in_url=card.id))
 
-    # Если дошли сюда, это непредвиденный случай (например, не GET и не POST)
     app.logger.error(f"Unexpected state in edit_card for card {card_id}, method: {request.method}")
     return redirect(url_for('view_board', board_id=board.id))
 
@@ -718,3 +745,94 @@ def delete_comment(comment_id):
     db.session.delete(comment)
     db.session.commit()
     return jsonify(success=True, message="Комментарий удален.")
+
+
+# --- Маршруты для ТЕГОВ (AJAX) ---
+
+@app.route('/api/boards/<int:board_id>/tags', methods=['GET'])
+@login_required
+def get_board_tags(board_id):
+    board = Board.query.get_or_404(board_id)
+    if not current_user.can_edit_board(board):
+        return jsonify(success=False, error="Нет доступа к тегам этой доски."), 403
+    
+    tags = board.tags.order_by(Tag.name).all()
+    tags_data = [{'id': tag.id, 'name': tag.name, 'color': tag.color} for tag in tags]
+    return jsonify(success=True, tags=tags_data)
+
+@app.route('/api/boards/<int:board_id>/tags/create', methods=['POST'])
+@login_required
+def create_tag_for_board(board_id):
+    board = Board.query.get_or_404(board_id)
+    if not current_user.can_edit_board(board): # Или can_delete_board(board) если только владелец может создавать теги
+        return jsonify(success=False, error="Нет прав для создания тегов на этой доске."), 403
+
+    form = TagForm()
+    if form.validate_on_submit():
+        try:
+            new_tag = Tag(name=form.name.data, color=form.color.data, board_id=board.id)
+            db.session.add(new_tag)
+            db.session.commit()
+            return jsonify(success=True, tag={'id': new_tag.id, 'name': new_tag.name, 'color': new_tag.color}), 201
+        except exc.IntegrityError: # Перехват ошибки уникальности (имя тега уже существует на доске)
+            db.session.rollback()
+            return jsonify(success=False, errors={'name': f'Тег с именем "{form.name.data}" уже существует на этой доске.'}), 400
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error creating tag for board {board_id}: {e}")
+            return jsonify(success=False, error="Внутренняя ошибка сервера при создании тега."), 500
+            
+    errors = {field: error[0] for field, error in form.errors.items()}
+    return jsonify(success=False, errors=errors), 400
+
+
+@app.route('/api/tags/<int:tag_id>/edit', methods=['POST'])
+@login_required
+def edit_tag(tag_id):
+    tag_to_edit = Tag.query.get_or_404(tag_id)
+    board = tag_to_edit.board
+    if not current_user.can_edit_board(board): # Или can_delete_board(board)
+        return jsonify(success=False, error="Нет прав для редактирования тегов этой доски."), 403
+
+    form = TagForm()
+    if form.validate_on_submit():
+        try:
+            # Проверка на уникальность имени, если оно изменилось
+            if tag_to_edit.name != form.name.data:
+                existing_tag = Tag.query.filter_by(name=form.name.data, board_id=board.id).first()
+                if existing_tag:
+                    return jsonify(success=False, errors={'name': f'Тег с именем "{form.name.data}" уже существует на этой доске.'}), 400
+            
+            tag_to_edit.name = form.name.data
+            tag_to_edit.color = form.color.data
+            db.session.commit()
+            return jsonify(success=True, tag={'id': tag_to_edit.id, 'name': tag_to_edit.name, 'color': tag_to_edit.color})
+        except exc.IntegrityError: # На всякий случай, хотя проверка выше
+            db.session.rollback()
+            return jsonify(success=False, errors={'name': f'Тег с именем "{form.name.data}" уже существует (ошибка Integrity).'}), 400
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error editing tag {tag_id}: {e}")
+            return jsonify(success=False, error="Внутренняя ошибка сервера при редактировании тега."), 500
+
+    errors = {field: error[0] for field, error in form.errors.items()}
+    return jsonify(success=False, errors=errors), 400
+
+
+@app.route('/api/tags/<int:tag_id>/delete', methods=['POST'])
+@login_required
+def delete_tag(tag_id):
+    tag_to_delete = Tag.query.get_or_404(tag_id)
+    board = tag_to_delete.board
+    if not current_user.can_edit_board(board): # Или can_delete_board(board)
+        return jsonify(success=False, error="Нет прав для удаления тегов этой доски."), 403
+    
+    try:
+        tag_name = tag_to_delete.name
+        db.session.delete(tag_to_delete) # Связи в card_tags удалятся каскадно (ondelete='CASCADE')
+        db.session.commit()
+        return jsonify(success=True, message=f'Тег "{tag_name}" удален.')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting tag {tag_id}: {e}")
+        return jsonify(success=False, error="Внутренняя ошибка сервера при удалении тега."), 500

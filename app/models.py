@@ -4,13 +4,20 @@ from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import backref
+from sqlalchemy import UniqueConstraint # Добавлено для UniqueConstraint
 from flask import url_for
-from datetime import datetime # Добавлено для Comment.timestamp
+from datetime import datetime
 
 # --- Ассоциативная таблица для связи Card и User (исполнители) ---
 card_assignees = db.Table('card_assignees',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), primary_key=True),
     db.Column('card_id', db.Integer, db.ForeignKey('card.id', ondelete='CASCADE'), primary_key=True)
+)
+
+# --- Ассоциативная таблица для связи Card и Tag ---
+card_tags = db.Table('card_tags',
+    db.Column('card_id', db.Integer, db.ForeignKey('card.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id', ondelete='CASCADE'), primary_key=True)
 )
 
 @login_manager.user_loader
@@ -37,7 +44,6 @@ class User(UserMixin, db.Model):
     # assigned_cards (многие-ко-многим с Card) создается через backref в Card.assignees
     # comments (один-ко-многим с Comment) создается через backref в Comment.author
 
-
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -63,6 +69,7 @@ class Board(db.Model):
     name = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) 
     columns = db.relationship('Column', backref='board', lazy=True, cascade="all, delete-orphan", order_by='Column.position')
+    tags = db.relationship('Tag', backref='board', lazy='dynamic', cascade="all, delete-orphan") # Связь с тегами
 
     def get_eligible_assignees(self):
         assignees = [self.owner] + self.members.all()
@@ -93,10 +100,26 @@ class Card(db.Model):
         backref=db.backref('assigned_cards', lazy='dynamic'), 
         lazy='dynamic'
     )
+    tags = db.relationship( # Связь с тегами
+        'Tag', secondary=card_tags,
+        backref=db.backref('cards', lazy='dynamic'),
+        lazy='dynamic'
+    )
     # comments (один-ко-многим с Comment) создается через backref в Comment.card
 
     def __repr__(self):
         return f'<Card {self.title}>'
+
+class Tag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    color = db.Column(db.String(7), nullable=False, default='#808080') # HEX color, e.g., #FF0000
+    board_id = db.Column(db.Integer, db.ForeignKey('board.id', ondelete='CASCADE'), nullable=False)
+
+    __table_args__ = (UniqueConstraint('name', 'board_id', name='uq_tag_name_board'),)
+
+    def __repr__(self):
+        return f'<Tag {self.name} ({self.color}) Board: {self.board_id}>'
 
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -105,12 +128,7 @@ class Comment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     card_id = db.Column(db.Integer, db.ForeignKey('card.id', ondelete='CASCADE'), nullable=False)
 
-    # Связь с автором. При удалении User, его комментарии удалятся (ondelete='CASCADE' на ForeignKey).
-    # Дополнительно cascade на уровне ORM для User.comments.
     author = db.relationship('User', backref=db.backref('comments', lazy='dynamic', cascade="all, delete-orphan"))
-    
-    # Связь с карточкой. При удалении Card, ее комментарии удалятся (ondelete='CASCADE' на ForeignKey).
-    # Дополнительно cascade на уровне ORM для Card.comments.
     card = db.relationship('Card', backref=db.backref('comments', lazy='dynamic', cascade="all, delete-orphan"))
 
     def __repr__(self):

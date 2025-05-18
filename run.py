@@ -3,10 +3,10 @@
 import os
 import click 
 from app import app, db
-from app.models import User, Board, Column, Card, Comment # Добавлен Comment
+from app.models import User, Board, Column, Card, Comment, Tag # Добавлен Tag
 from werkzeug.security import generate_password_hash
 from sqlalchemy import inspect
-from datetime import datetime # Для тестовых комментариев
+from datetime import datetime
 
 # --- Функции для создания таблиц и наполнения данными (будут вызываться через CLI) ---
 
@@ -15,29 +15,29 @@ def _create_tables():
     print("Проверка и создание таблиц БД...")
     with app.app_context():
         inspector = inspect(db.engine)
-        if not inspector.has_table("user"): 
-            print("Таблицы не найдены, создаем...")
+        tables_to_check = ["user", "card_assignees", "comment", "tag", "card_tags"]
+        existing_tables = inspector.get_table_names()
+        
+        all_tables_exist = True
+        for table_name in tables_to_check:
+            if table_name not in existing_tables:
+                all_tables_exist = False
+                print(f"Таблица '{table_name}' не найдена.")
+                break
+        
+        if not all_tables_exist:
+            print("Не все необходимые таблицы существуют, пересоздаем все таблицы...")
             db.create_all() 
-            print("Таблицы успешно созданы.")
+            print("Таблицы успешно созданы/пересозданы.")
         else:
-            # Дополнительно проверим таблицы card_assignees и comment
-            if not inspector.has_table("card_assignees"):
-                print("Таблица 'card_assignees' не найдена, пересоздаем все таблицы...")
-                db.create_all()
-                print("Таблица 'card_assignees' (и возможно другие) успешно создана.")
-            if not inspector.has_table("comment"):
-                print("Таблица 'comment' не найдена, пересоздаем все таблицы...")
-                db.create_all()
-                print("Таблица 'comment' (и возможно другие) успешно создана.")
-            else:
-                print("Таблицы уже существуют.")
+            print("Все необходимые таблицы уже существуют.")
 
 
 def _seed_data():
     """Наполняет БД тестовыми данными (админ, пользователи, доски и т.д.), если админа нет."""
     with app.app_context():
         inspector = inspect(db.engine)
-        required_tables = ["user", "card_assignees", "comment"]
+        required_tables = ["user", "card_assignees", "comment", "tag", "card_tags"] # Добавлены tag, card_tags
         for table_name in required_tables:
             if not inspector.has_table(table_name):
                 print(f"Ошибка: Таблица '{table_name}' не найдена. Сначала создайте таблицы командой 'flask db-create' или 'flask db-init'.")
@@ -78,6 +78,29 @@ def _seed_data():
             board1 = Board.query.filter_by(name='Проект Альфа').first()
             board2 = Board.query.filter_by(name='Личные задачи User1').first()
 
+            # Теги для Доски 1
+            tag_b1_bug = None
+            tag_b1_feat = None
+            tag_b1_urgent = None
+            if board1:
+                tag_b1_bug = Tag(name='Баг', color='#d9534f', board_id=board1.id) # red
+                tag_b1_feat = Tag(name='Фича', color='#5cb85c', board_id=board1.id) # green
+                tag_b1_urgent = Tag(name='Срочно', color='#f0ad4e', board_id=board1.id) # orange
+                db.session.add_all([tag_b1_bug, tag_b1_feat, tag_b1_urgent])
+                try: db.session.commit(); print("Теги для Доски 1 созданы.")
+                except Exception as e: db.session.rollback(); print(f"Ошибка при создании тегов для Д1: {e}"); return
+            
+            # Теги для Доски 2
+            tag_b2_personal = None
+            tag_b2_work = None
+            if board2:
+                tag_b2_personal = Tag(name='Личное', color='#5bc0de', board_id=board2.id) # blue
+                tag_b2_work = Tag(name='Работа', color='#337ab7', board_id=board2.id) # dark blue
+                db.session.add_all([tag_b2_personal, tag_b2_work])
+                try: db.session.commit(); print("Теги для Доски 2 созданы.")
+                except Exception as e: db.session.rollback(); print(f"Ошибка при создании тегов для Д2: {e}"); return
+
+
             if board1:
                 col1_1 = Column(name='Бэклог', board_id=board1.id, position=0)
                 col1_2 = Column(name='В работе', board_id=board1.id, position=1)
@@ -87,23 +110,26 @@ def _seed_data():
                 except Exception as e: db.session.rollback(); print(f"Ошибка колонок Д1: {e}"); return
 
                 card1_1 = Card(title='Настроить аутентификацию', column_id=col1_1.id)
-                db.session.add(card1_1) 
-                card1_1.assignees.append(admin_user)
+                db.session.add(card1_1); card1_1.assignees.append(admin_user)
+                if tag_b1_feat: card1_1.tags.append(tag_b1_feat)
+                if tag_b1_urgent: card1_1.tags.append(tag_b1_urgent)
+
 
                 card1_2 = Card(title='Реализовать CRUD для досок', column_id=col1_1.id)
                 db.session.add(card1_2)
+                if tag_b1_feat: card1_2.tags.append(tag_b1_feat)
 
-                card1_3 = Card(title='Создать модели БД', column_id=col1_2.id)
-                db.session.add(card1_3)
-                card1_3.assignees.append(user1)
-                card1_3.assignees.append(admin_user)
+                card1_3 = Card(title='Исправить ошибку в логине', column_id=col1_2.id) # Изменено название для соответствия тегу "Баг"
+                db.session.add(card1_3); card1_3.assignees.append(user1); card1_3.assignees.append(admin_user)
+                if tag_b1_bug: card1_3.tags.append(tag_b1_bug)
+                if tag_b1_urgent: card1_3.tags.append(tag_b1_urgent)
+
 
                 card1_4 = Card(title='Настроить базовый шаблон', column_id=col1_3.id)
                 db.session.add(card1_4)
                 
-                print("Карточки для Д1 добавлены и исполнители назначены.")
+                print("Карточки для Д1 добавлены, исполнители и теги назначены.")
                 
-                # Добавляем комментарии
                 comment1 = Comment(text="Начинаем работу над аутентификацией. Какие есть предложения по библиотекам?", author=admin_user, card=card1_1, timestamp=datetime.utcnow())
                 comment2 = Comment(text="Может быть Flask-Login? Он довольно популярен.", author=user1, card=card1_1, timestamp=datetime.utcnow())
                 comment3 = Comment(text="Согласен, Flask-Login хороший выбор. Я уже начал смотреть документацию.", author=admin_user, card=card1_1, timestamp=datetime.utcnow())
@@ -121,16 +147,18 @@ def _seed_data():
 
                 card2_1 = Card(title='Купить продукты', column_id=col2_1.id)
                 db.session.add(card2_1)
+                if tag_b2_personal: card2_1.tags.append(tag_b2_personal)
 
                 card2_2 = Card(title='Закончить отчет', column_id=col2_2.id)
-                db.session.add(card2_2)
-                card2_2.assignees.append(user1)
+                db.session.add(card2_2); card2_2.assignees.append(user1)
+                if tag_b2_work: card2_2.tags.append(tag_b2_work)
+                if tag_b2_personal: card2_2.tags.append(tag_b2_personal) # Карточка может иметь несколько тегов
                 
                 comment5 = Comment(text="Не забыть проверить сроки годности!", author=user1, card=card2_1, timestamp=datetime.utcnow())
                 db.session.add(comment5)
                 print("Комментарии для карточек Доски 2 добавлены.")
                 
-                print("Карточки для Д2 добавлены и исполнители назначены.")
+                print("Карточки для Д2 добавлены, исполнители и теги назначены.")
 
             try:
                 db.session.commit()

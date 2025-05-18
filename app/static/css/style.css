@@ -16,3 +16,63 @@ body {
     white-space: pre-wrap;
     word-break: break-word;
 }
+
+/* Стили для тегов */
+.tag-badge {
+    display: inline-block;
+    width: 20px; /* Ширина цветной метки */
+    height: 10px; /* Высота цветной метки */
+    border-radius: 3px; /* Небольшое скругление */
+    /* background-color устанавливается инлайн */
+    vertical-align: middle;
+}
+
+.card-tags-display {
+    min-height: 10px; /* Чтобы контейнер не схлопывался, если тегов нет */
+}
+
+/* В модальном окне для превью выбранных тегов */
+.tag-preview-item {
+    display: inline-flex; /* Используем flex для выравнивания */
+    align-items: center; /* Выравниваем по центру вертикально */
+    padding: 0.2em 0.5em;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    border-radius: 0.25rem;
+    font-size: 0.85em;
+    border: 1px solid #ccc; /* Добавим рамку для лучшего вида */
+}
+
+.tag-color-preview {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%; /* Круглый индикатор цвета */
+    margin-right: 5px;
+    display: inline-block;
+    border: 1px solid rgba(0,0,0,0.1); /* Тонкая рамка для светлых цветов */
+}
+
+.tag-name-preview {
+    /* Стили для имени тега в превью, если нужны */
+}
+
+/* Стили для списка тегов доски в модалке */
+#boardTagsListModal .list-group-item {
+    padding: 0.5rem 0.75rem; /* Уменьшаем паддинги */
+    font-size: 0.9em;
+}
+#boardTagsListModal .list-group-item .tag-color-preview {
+    width: 10px;
+    height: 10px;
+}
+#boardTagsListModal .btn-delete-tag-modal,
+#boardTagsListModal .btn-edit-tag-modal {
+    padding: 0.1rem 0.3rem;
+    font-size: 0.8em;
+    line-height: 1;
+}
+
+.form-control-color { /* Bootstrap 5.1+ has this, but for older versions or consistency */
+    min-height: calc(1.5em + .5rem + 2px); /* Match sm input height */
+    padding: .25rem .5rem;
+}

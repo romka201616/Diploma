@@ -3,8 +3,8 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, SelectMultipleField
-from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional
-from app.models import User
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional, Regexp
+from app.models import User # Tag будет импортироваться в routes при необходимости для валидации
 from flask_login import current_user
 
 
@@ -59,14 +59,27 @@ class CardForm(FlaskForm):
                                     Length(min=1, max=150)])
     description = TextAreaField('Описание', validators=[Length(max=1000), Optional()])
     assignees = SelectMultipleField('Исполнители', coerce=int, validators=[Optional()])
+    tags = SelectMultipleField('Теги', coerce=int, validators=[Optional()]) # Поле для тегов
     submit_card = SubmitField('Добавить/Сохранить карточку')
+
+class TagForm(FlaskForm):
+    name = StringField('Название тега', validators=[
+        DataRequired(message="Название тега не может быть пустым."),
+        Length(min=1, max=50, message="Название тега от 1 до 50 символов.")
+    ])
+    color = StringField('Цвет тега', validators=[
+        DataRequired(message="Выберите цвет тега."),
+        Regexp(r'^#(?:[0-9a-fA-F]{3}){1,2}$', message="Неверный формат цвета (ожидается HEX, например, #RRGGBB).")
+    ], default='#808080') # Значение по умолчанию для поля формы
+    submit_tag = SubmitField('Создать/Сохранить тег')
+
 
 class CommentForm(FlaskForm):
     text = TextAreaField('Комментарий', validators=[
         DataRequired(message="Комментарий не может быть пустым."),
         Length(min=1, max=1000, message="Длина комментария от 1 до 1000 символов.")
     ])
-    submit_comment = SubmitField('Отправить') # Изменено имя кнопки для уникальности
+    submit_comment = SubmitField('Отправить')
 
 
 class InviteUserForm(FlaskForm):
