@@ -5,6 +5,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import backref
 from flask import url_for
+from datetime import datetime # Добавлено для Comment.timestamp
 
 # --- Ассоциативная таблица для связи Card и User (исполнители) ---
 card_assignees = db.Table('card_assignees',
@@ -33,16 +34,8 @@ class User(UserMixin, db.Model):
     shared_boards = db.relationship('Board', secondary=board_members, lazy='dynamic',
                                     backref=db.backref('members', lazy='dynamic'))
     
-    # Связь "многие-ко-многим" для карточек, на которые назначен пользователь
-    # backref 'assigned_cards' создаст User.assigned_cards
-    # assigned_to_cards - это имя коллекции в модели Card
-    # assigned_cards - это имя коллекции в модели User (через backref)
-    # Этот backref будет доступен как user.assigned_cards
-    # assigned_cards = db.relationship(
-    #     'Card', secondary=card_assignees,
-    #     back_populates='assignees', # Связь с Card.assignees
-    #     lazy='dynamic'
-    # )
+    # assigned_cards (многие-ко-многим с Card) создается через backref в Card.assignees
+    # comments (один-ко-многим с Comment) создается через backref в Comment.author
 
 
     def set_password(self, password):
@@ -68,14 +61,11 @@ class User(UserMixin, db.Model):
 class Board(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # Владелец
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) 
     columns = db.relationship('Column', backref='board', lazy=True, cascade="all, delete-orphan", order_by='Column.position')
-    # Участники уже определены через User.shared_boards и board_members
 
     def get_eligible_assignees(self):
-        """Возвращает список пользователей, которые могут быть назначены исполнителями на карточки этой доски (владелец + участники)."""
         assignees = [self.owner] + self.members.all()
-        # Удаляем дубликаты, если владелец также есть в members (хотя этого не должно быть по логике приглашений)
         unique_assignees = list({user.id: user for user in assignees}.values())
         return sorted(unique_assignees, key=lambda u: u.username.lower())
 
@@ -85,9 +75,9 @@ class Board(db.Model):
 class Column(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    position = db.Column(db.Integer, nullable=False, default=0) # Для сортировки колонок
+    position = db.Column(db.Integer, nullable=False, default=0) 
     board_id = db.Column(db.Integer, db.ForeignKey('board.id'), nullable=False)
-    cards = db.relationship('Card', backref='column', lazy='dynamic', cascade="all, delete-orphan") # Карточки в этой колонке
+    cards = db.relationship('Card', backref='column', lazy='dynamic', cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Column {self.name}>'
@@ -98,14 +88,30 @@ class Card(db.Model):
     description = db.Column(db.Text, nullable=True)
     column_id = db.Column(db.Integer, db.ForeignKey('column.id'), nullable=False)
     
-    # Связь "многие-ко-многим" с User через таблицу card_assignees
-    # 'assignees' - это имя атрибута в модели Card для доступа к списку исполнителей
-    # backref='assigned_cards' создаст User.assigned_cards для доступа к карточкам пользователя
     assignees = db.relationship(
         'User', secondary=card_assignees,
-        backref=db.backref('assigned_cards', lazy='dynamic'), # User.assigned_cards
-        lazy='dynamic' # Card.assignees будет возвращать Query
+        backref=db.backref('assigned_cards', lazy='dynamic'), 
+        lazy='dynamic'
     )
+    # comments (один-ко-многим с Comment) создается через backref в Comment.card
 
     def __repr__(self):
         return f'<Card {self.title}>'
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    card_id = db.Column(db.Integer, db.ForeignKey('card.id', ondelete='CASCADE'), nullable=False)
+
+    # Связь с автором. При удалении User, его комментарии удалятся (ondelete='CASCADE' на ForeignKey).
+    # Дополнительно cascade на уровне ORM для User.comments.
+    author = db.relationship('User', backref=db.backref('comments', lazy='dynamic', cascade="all, delete-orphan"))
+    
+    # Связь с карточкой. При удалении Card, ее комментарии удалятся (ondelete='CASCADE' на ForeignKey).
+    # Дополнительно cascade на уровне ORM для Card.comments.
+    card = db.relationship('Card', backref=db.backref('comments', lazy='dynamic', cascade="all, delete-orphan"))
+
+    def __repr__(self):
+        return f'<Comment {self.id} by User {self.author.username if self.author else "Unknown"} on Card {self.card_id}>'

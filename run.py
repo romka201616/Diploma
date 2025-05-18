@@ -1,11 +1,12 @@
 # run.py
 
 import os
-import click # Для CLI команд
+import click 
 from app import app, db
-from app.models import User, Board, Column, Card # card_assignees не нужно импортировать явно
+from app.models import User, Board, Column, Card, Comment # Добавлен Comment
 from werkzeug.security import generate_password_hash
 from sqlalchemy import inspect
+from datetime import datetime # Для тестовых комментариев
 
 # --- Функции для создания таблиц и наполнения данными (будут вызываться через CLI) ---
 
@@ -19,10 +20,15 @@ def _create_tables():
             db.create_all() 
             print("Таблицы успешно созданы.")
         else:
+            # Дополнительно проверим таблицы card_assignees и comment
             if not inspector.has_table("card_assignees"):
-                print("Таблица 'card_assignees' не найдена, создаем все таблицы (на случай других отсутствующих)...")
+                print("Таблица 'card_assignees' не найдена, пересоздаем все таблицы...")
                 db.create_all()
                 print("Таблица 'card_assignees' (и возможно другие) успешно создана.")
+            if not inspector.has_table("comment"):
+                print("Таблица 'comment' не найдена, пересоздаем все таблицы...")
+                db.create_all()
+                print("Таблица 'comment' (и возможно другие) успешно создана.")
             else:
                 print("Таблицы уже существуют.")
 
@@ -31,12 +37,11 @@ def _seed_data():
     """Наполняет БД тестовыми данными (админ, пользователи, доски и т.д.), если админа нет."""
     with app.app_context():
         inspector = inspect(db.engine)
-        if not inspector.has_table("user"): 
-            print("Ошибка: Таблица 'user' не найдена. Сначала создайте таблицы командой 'flask db-create' или 'flask db-init'.")
-            return
-        if not inspector.has_table("card_assignees"):
-            print("Ошибка: Таблица 'card_assignees' не найдена. Выполните 'flask db-create' или 'flask db-init'.")
-            return
+        required_tables = ["user", "card_assignees", "comment"]
+        for table_name in required_tables:
+            if not inspector.has_table(table_name):
+                print(f"Ошибка: Таблица '{table_name}' не найдена. Сначала создайте таблицы командой 'flask db-create' или 'flask db-init'.")
+                return
 
         print("Проверка необходимости наполнения БД...")
         admin_user = User.query.filter_by(email='admin@gmai.com').first()
@@ -97,6 +102,15 @@ def _seed_data():
                 db.session.add(card1_4)
                 
                 print("Карточки для Д1 добавлены и исполнители назначены.")
+                
+                # Добавляем комментарии
+                comment1 = Comment(text="Начинаем работу над аутентификацией. Какие есть предложения по библиотекам?", author=admin_user, card=card1_1, timestamp=datetime.utcnow())
+                comment2 = Comment(text="Может быть Flask-Login? Он довольно популярен.", author=user1, card=card1_1, timestamp=datetime.utcnow())
+                comment3 = Comment(text="Согласен, Flask-Login хороший выбор. Я уже начал смотреть документацию.", author=admin_user, card=card1_1, timestamp=datetime.utcnow())
+                comment4 = Comment(text="По моделям: нужно продумать все связи.", author=user1, card=card1_3, timestamp=datetime.utcnow())
+                db.session.add_all([comment1, comment2, comment3, comment4])
+                print("Комментарии для карточек Доски 1 добавлены.")
+
 
             if board2:
                 col2_1 = Column(name='Сделать', board_id=board2.id, position=0)
@@ -112,13 +126,17 @@ def _seed_data():
                 db.session.add(card2_2)
                 card2_2.assignees.append(user1)
                 
+                comment5 = Comment(text="Не забыть проверить сроки годности!", author=user1, card=card2_1, timestamp=datetime.utcnow())
+                db.session.add(comment5)
+                print("Комментарии для карточек Доски 2 добавлены.")
+                
                 print("Карточки для Д2 добавлены и исполнители назначены.")
 
             try:
                 db.session.commit()
                 print("Наполнение БД тестовыми данными успешно завершено.")
             except Exception as e:
-                db.session.rollback(); print(f"Ошибка при финальном сохранении карточек: {e}")
+                db.session.rollback(); print(f"Ошибка при финальном сохранении: {e}")
         else:
             print("Администратор уже существует. Наполнение БД пропускается.")
 
@@ -127,88 +145,59 @@ def _seed_data():
 
 @app.cli.command("db-create")
 def create_tables_command():
-    """Создает таблицы БД, если они не существуют."""
     _create_tables()
 
 @app.cli.command("db-seed")
 def seed_db_command():
-    """Наполняет БД тестовыми данными (если админ отсутствует)."""
     _seed_data()
-
-# run.py
-# ... (весь остальной код остается без изменений) ...
 
 @app.cli.command("db-init")
 @click.option('--force', is_flag=True, help='Удалить существующую БД перед инициализацией.')
 def init_db_command(force):
-    """Инициализирует БД: удаляет (если --force), создает таблицы и наполняет данными."""
     db_path = os.path.join(app.instance_path, 'mydatabase.db')
     db_exists_at_start = os.path.exists(db_path)
 
     if force:
         if db_exists_at_start:
             print(f"Попытка удаления существующей БД: {db_path}...")
-            
-            # Сначала попробуем удалить таблицы через SQLAlchemy
-            # Это требует контекста приложения
             with app.app_context():
                 print("Попытка закрыть активные сессии и удалить таблицы через SQLAlchemy...")
                 try:
-                    # db.session.close_all() # SQLAlchemy < 2.0
-                    db.session.close() # Закрываем текущую сессию, если она есть
-                    # db.engine.dispose() # Можно попробовать закрыть все соединения в пуле
+                    db.session.close() 
                     print("Сессия SQLAlchemy закрыта (если была активна).")
                 except Exception as e_session:
                     print(f"Примечание: Ошибка при попытке закрыть сессию SQLAlchemy: {e_session}")
-
                 try:
-                    db.drop_all()       # Удаляет все таблицы
+                    db.drop_all()       
                     print("Таблицы БД успешно удалены через SQLAlchemy.")
                 except Exception as e_drop:
                     print(f"Ошибка при удалении таблиц через SQLAlchemy: {e_drop}")
                     print("Это может произойти, если файл БД все еще заблокирован.")
-
-            # После попытки drop_all, проверим и попробуем удалить файл физически
             if os.path.exists(db_path):
                 print(f"Файл БД все еще существует ({db_path}). Попытка физического удаления...")
                 try:
                     os.remove(db_path)
                     print("Файл БД успешно физически удален.")
-                except PermissionError as e_perm: # Явно ловим PermissionError
+                except PermissionError as e_perm: 
                     print(f"ОШИБКА ФИЗИЧЕСКОГО УДАЛЕНИЯ: {e_perm}")
                     print(f"Файл '{db_path}' заблокирован другим процессом.")
-                    print("Пожалуйста, убедитесь, что Flask-приложение и другие программы,")
-                    print("использующие эту БД (например, DB Browser for SQLite), закрыты, и попробуйте снова.")
-                    # На этом этапе можно либо прервать скрипт, либо продолжить создание таблиц "поверх"
-                    # Если drop_all не удался, то create_all тоже может не сработать корректно
-                    # print("Инициализация прервана из-за невозможности удалить файл БД.")
-                    # return # Раскомментируйте, если хотите прерывать выполнение
                 except Exception as e_rem:
                     print(f"Не удалось физически удалить файл БД: {e_rem}")
             else:
-                # Если drop_all успешно удалил и файл (иногда бывает с SQLite), то файла уже нет
-                if db_exists_at_start: # Только если он изначально существовал
+                if db_exists_at_start: 
                      print("Файл БД был удален (вероятно, в результате db.drop_all()).")
-
-        else: # if db_exists_at_start
+        else: 
             print("Файл БД не найден, удаление не требуется.")
-    
-    elif db_exists_at_start: # if not force and db_exists_at_start
+    elif db_exists_at_start: 
          print(f"Файл БД '{db_path}' уже существует. Используйте '--force', чтобы удалить и пересоздать.")
          print("Инициализация прервана.")
          return 
-
-    # Если мы дошли сюда, значит либо файла не было, либо он был удален (или его не удалось удалить, но мы продолжаем)
     print("Создание таблиц...")
     _create_tables() 
     print("Наполнение данными...")
     _seed_data()   
     print("Инициализация БД завершена.")
 
-# ... (остальной код run.py) ...
-
-
-# --- Запуск основного приложения ---
 if __name__ == '__main__':
     print("Запуск Flask development-сервера...")
     print("Для создания/пересоздания БД выполните: flask db-init --force")

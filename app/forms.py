@@ -1,11 +1,11 @@
 # app/forms.py
 
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileAllowed # Для загрузки файлов
+from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional
 from app.models import User
-from flask_login import current_user # Для валидации текущего пароля
+from flask_login import current_user
 
 
 class RegistrationForm(FlaskForm):
@@ -58,11 +58,15 @@ class CardForm(FlaskForm):
                         validators=[DataRequired(message="Заголовок не может быть пустым."),
                                     Length(min=1, max=150)])
     description = TextAreaField('Описание', validators=[Length(max=1000), Optional()])
-    
-    # Поле для нескольких исполнителей
     assignees = SelectMultipleField('Исполнители', coerce=int, validators=[Optional()])
-    
     submit_card = SubmitField('Добавить/Сохранить карточку')
+
+class CommentForm(FlaskForm):
+    text = TextAreaField('Комментарий', validators=[
+        DataRequired(message="Комментарий не может быть пустым."),
+        Length(min=1, max=1000, message="Длина комментария от 1 до 1000 символов.")
+    ])
+    submit_comment = SubmitField('Отправить') # Изменено имя кнопки для уникальности
 
 
 class InviteUserForm(FlaskForm):
@@ -70,7 +74,6 @@ class InviteUserForm(FlaskForm):
                                     validators=[DataRequired(message="Введите email или имя пользователя.")])
     submit_invite = SubmitField('Пригласить')
 
-# --- Формы для Профиля Пользователя ---
 class UpdateAccountForm(FlaskForm):
     username = StringField('Имя пользователя',
                            validators=[DataRequired(), Length(min=4, max=64)])
@@ -108,7 +111,6 @@ class UpdateAvatarForm(FlaskForm):
                                    FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Разрешены только изображения (jpg, png, gif)!')])
     submit = SubmitField('Загрузить аватар')
 
-# --- Формы для Панели Администратора ---
 class AdminEditUserForm(FlaskForm):
     username = StringField('Имя пользователя',
                            validators=[DataRequired(), Length(min=4, max=64)])

@@ -1,5 +1,3 @@
-{# app/templates/board.html #}
-
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 
@@ -14,7 +12,7 @@
     </div>
 </div>
 
-<!-- Управление участниками (только для владельца) -->
+<!-- Управление участниками -->
 {% if is_owner %}
 <div class="card mb-4">
     <div class="card-header">
@@ -125,7 +123,6 @@
                 <div class="card-body d-flex flex-column">
                     <div class="list-group list-group-flush mb-3 flex-grow-1 card-list" id="column-{{ column.id }}" data-column-id="{{ column.id }}">
                         {% for card in column.cards.all() %}
-                        {# Собираем данные об исполнителях для data-атрибута #}
                         {% set card_assignees_json = [] %}
                         {% for assignee in card.assignees.all() %}
                             {% set _ = card_assignees_json.append({'id': assignee.id, 'username': assignee.username, 'avatar_url': assignee.get_avatar()}) %}
@@ -138,7 +135,7 @@
                              data-card-description="{{ card.description or '' }}"
                              data-edit-url="{{ url_for('edit_card', card_id=card.id) }}"
                              data-delete-url="{{ url_for('delete_card', card_id=card.id) }}"
-                             data-card-assignees='{{ card_assignees_json|tojson }}' {# JSON список исполнителей, обернутый в одинарные кавычки #}
+                             data-card-assignees='{{ card_assignees_json|tojson }}'
                              id="card-{{ card.id }}">
                             <div class="d-flex w-100 justify-content-between">
                                 <h6 class="mb-1 card-title-display">{{ card.title }}</h6>
@@ -170,7 +167,7 @@
                             {{ card_form.title(class="form-control form-control-sm", placeholder="Новая карточка...", aria_label="Заголовок карточки") }}
                         </div>
                          {{ card_form.description(style="display:none;") }}
-                         {{ card_form.assignees(style="display:none;") }} {# Скрыто, для быстрой формы не выбираем #}
+                         {{ card_form.assignees(style="display:none;") }}
                         {{ card_form.submit_card(class="btn btn-sm btn-outline-primary w-100", value="+ Добавить") }}
                          {% if card_form.errors and request.form.get('column_id') == column.id|string %}
                               <div class="mt-2 text-danger small">
@@ -203,7 +200,7 @@
                                 </div>
                             {% endif %}
                         </div>
-                        <input type="hidden" name="submit_column" value="1"> {# Идентификатор для обработчика в view_board #}
+                        <input type="hidden" name="submit_column" value="1">
                         {{ column_form.submit_column(class="btn btn-primary btn-sm w-100", value="Добавить колонку") }}
                     </form>
                 </div>
@@ -213,450 +210,14 @@
     </div>
 </div>
 
-<!-- Модальное окно для деталей/редактирования карточки -->
-<div class="modal fade" id="cardDetailModal" tabindex="-1" aria-labelledby="cardDetailModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="cardDetailModalLabel">Детали карточки</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <form id="editCardFormModal" method="post" action="">
-            {{ card_form.hidden_tag() }}
-            <div class="mb-3">
-                {{ card_form.title.label(for="modalCardTitle", class="form-label") }}
-                {{ card_form.title(class="form-control", id="modalCardTitle", required=True, maxlength=150) }}
-                 <div class="invalid-feedback" id="modalTitleError"></div>
-            </div>
-            <div class="mb-3">
-                 {{ card_form.description.label(for="modalCardDescription", class="form-label") }}
-                 {{ card_form.description(class="form-control", id="modalCardDescription", rows=5, maxlength=1000) }}
-                 <div class="invalid-feedback" id="modalDescriptionError"></div>
-            </div>
-            <div class="mb-3">
-                {{ card_form.assignees.label(for="modalCardAssignees", class="form-label") }}
-                {# Этот селект будет SelectMultipleField. Bootstrap должен его стилизовать нормально #}
-                {# Choices для этого селекта должны быть уже установлены в card_form через _populate_assignee_choices #}
-                {{ card_form.assignees(class="form-select", id="modalCardAssignees", multiple="multiple", style="min-height: 100px;") }}
-                <div class="form-text">Удерживайте Ctrl (или Cmd на Mac) для выбора нескольких исполнителей.</div>
-                <div class="invalid-feedback" id="modalAssigneesError"></div>
-            </div>
-            <div id="modalSelectedAssigneesPreview" class="mb-3 d-flex flex-wrap align-items-center">
-                <!-- Аватарки выбранных исполнителей будут здесь -->
-            </div>
-            <input type="submit" name="submit_card" style="display:none;">
-        </form>
-      </div>
-      <div class="modal-footer justify-content-between">
-        <div>
-            <form id="deleteCardFormModal" method="post" action="" class="d-inline">
-                 <input type="hidden" name="csrf_token" value="">
-                 <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить эту карточку?');">Удалить</button>
-            </form>
-        </div>
-        <div>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-            <button type="button" class="btn btn-primary" id="saveCardModalBtn">Сохранить изменения</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+{# Включаем модальное окно из отдельного файла #}
+{% include '_card_modal.html' %}
+
 {% endblock %}
 
 {% block scripts %}
-{{ super() }}
+{{ super() }} {# Bootstrap JS #}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" integrity="sha512-Eezs+g9Lq4TCCq0wae01s9PuNWzHYoCMkE97e2qdkYthpI0pzC3UGB03lgEHn2XM85hDOUF6qgqqszs+iXU4UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var cardDetailModalEl = document.getElementById('cardDetailModal');
-    var cardModal = bootstrap.Modal.getInstance(cardDetailModalEl) || new bootstrap.Modal(cardDetailModalEl);
-
-    // Общий CSRF токен для AJAX запросов (если нужен в заголовке)
-    // Для FormData он обычно не нужен в заголовке, если есть hidden input в форме
-    var csrfTokenGlobal = document.querySelector('meta[name="csrf-token"]'); // Если бы он был в мета-теге
-    // Проще взять из любой формы на странице
-    var anyFormWithCsrf = document.querySelector('form input[name="csrf_token"]');
-    var csrfToken = anyFormWithCsrf ? anyFormWithCsrf.value : null;
-    if (!csrfToken) {
-        console.error("CSRF Token not found on the page for AJAX!");
-    }
-
-
-    if (cardDetailModalEl) {
-        var modalForm = document.getElementById('editCardFormModal');
-        var modalTitleField = document.getElementById('modalCardTitle');
-        var modalDescriptionField = document.getElementById('modalCardDescription');
-        var modalAssigneesSelect = document.getElementById('modalCardAssignees');
-        var modalSelectedAssigneesPreview = document.getElementById('modalSelectedAssigneesPreview');
-        var modalLabel = document.getElementById('cardDetailModalLabel');
-        var deleteForm = document.getElementById('deleteCardFormModal');
-        var saveButton = document.getElementById('saveCardModalBtn');
-
-        // Функция для обновления превью аватарок в модальном окне
-        function updateModalAssigneesPreview() {
-            modalSelectedAssigneesPreview.innerHTML = ''; // Очистить предыдущие
-            const selectedOptions = Array.from(modalAssigneesSelect.selectedOptions);
-            if (selectedOptions.length > 0) {
-                 const titleEl = document.createElement('small');
-                 titleEl.className = 'me-2 text-muted d-block w-100 mb-1';
-                 titleEl.textContent = 'Выбранные исполнители:';
-                 modalSelectedAssigneesPreview.appendChild(titleEl);
-            }
-            selectedOptions.forEach(option => {
-                // Пытаемся найти аватарку из data-атрибута или используем дефолтную
-                // Это лучше делать, если у нас есть полный список юзеров с аватарками в JS
-                // Пока просто покажем имя
-                const assigneeId = option.value;
-                const assigneeName = option.text;
-
-                // Пытаемся найти аватарку из глобального списка (если бы он был)
-                // let avatarUrl = глобальный_список_юзеров[assigneeId]?.avatar_url || "{{ url_for('static', filename='images/default_avatar.png') }}";
-                // Пока что будем просто отображать имена, аватарки обновятся на самой карточке после сохранения.
-                // Или, если мы передаем полный список assignees (включая аватары) через data-атрибут карточки,
-                // то можно будет их оттуда брать при открытии модалки.
-
-                const img = document.createElement('img');
-                // Попытка найти аватар из data-атрибутов селекта, если они там есть (нужно добавить при populate)
-                let avatarUrl = option.dataset.avatarUrl || "{{ url_for('static', filename='images/default_avatar.png') }}";
-
-                img.src = avatarUrl;
-                img.alt = assigneeName;
-                img.title = assigneeName;
-                img.className = 'rounded-circle me-1';
-                img.style.width = '30px';
-                img.style.height = '30px';
-                img.style.objectFit = 'cover';
-                modalSelectedAssigneesPreview.appendChild(img);
-            });
-        }
-        if(modalAssigneesSelect) {
-            modalAssigneesSelect.addEventListener('change', updateModalAssigneesPreview);
-        }
-
-
-        cardDetailModalEl.addEventListener('show.bs.modal', function (event) {
-            var cardElement = event.relatedTarget;
-            if (!cardElement || !cardElement.classList.contains('draggable-card')) return;
-
-            var cardId = cardElement.getAttribute('data-card-id');
-            var cardTitle = cardElement.getAttribute('data-card-title');
-            var cardDescription = cardElement.getAttribute('data-card-description');
-            var editUrl = cardElement.getAttribute('data-edit-url');
-            var deleteUrl = cardElement.getAttribute('data-delete-url');
-            var cardAssigneesJson = cardElement.getAttribute('data-card-assignees');
-            var currentAssignees = cardAssigneesJson ? JSON.parse(cardAssigneesJson) : [];
-            var currentAssigneeIds = currentAssignees.map(a => a.id.toString()); // ID как строки для сравнения
-
-            modalForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-            modalForm.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-
-            modalLabel.textContent = 'Карточка: ' + cardTitle;
-            modalTitleField.value = cardTitle;
-            modalDescriptionField.value = cardDescription;
-            modalForm.action = editUrl;
-            deleteForm.action = deleteUrl;
-            
-            // Установка выбранных исполнителей в SelectMultiple
-            Array.from(modalAssigneesSelect.options).forEach(option => {
-                option.selected = currentAssigneeIds.includes(option.value);
-                // Сохраняем URL аватара в data-атрибут option, если он есть
-                const assigneeData = currentAssignees.find(a => a.id.toString() === option.value);
-                if (assigneeData && assigneeData.avatar_url) {
-                    option.dataset.avatarUrl = assigneeData.avatar_url;
-                }
-            });
-            updateModalAssigneesPreview(); // Обновить превью
-
-            let deleteCsrfInput = deleteForm.querySelector('input[name="csrf_token"]');
-             if (deleteCsrfInput && csrfToken) {
-                 deleteCsrfInput.value = csrfToken;
-             } else if (!csrfToken) {
-                 console.error("CSRF Token missing for delete form in modal.");
-             }
-        });
-
-        saveButton.addEventListener('click', function() {
-            modalForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-            modalForm.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-
-            // Убедимся, что CSRF токен есть в самой форме
-            let formCsrf = modalForm.querySelector('input[name="csrf_token"]');
-            if (!formCsrf || !formCsrf.value) {
-                 if(csrfToken){ // Если есть глобальный, но нет в форме
-                    if(!formCsrf){
-                        formCsrf = document.createElement('input');
-                        formCsrf.type = 'hidden';
-                        formCsrf.name = 'csrf_token';
-                        modalForm.appendChild(formCsrf);
-                    }
-                    formCsrf.value = csrfToken;
-                 } else {
-                    alert('Критическая ошибка: CSRF токен не найден. Обновите страницу.');
-                    return;
-                 }
-            }
-
-            fetch(modalForm.action, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    // 'X-CSRFToken': csrfToken, // Не всегда нужен с FormData, если есть в теле
-                },
-                body: new FormData(modalForm)
-            })
-            .then(response => response.json().then(data => ({ status: response.status, body: data })))
-            .then(({ status, body }) => {
-                if (status === 200 && body.success) {
-                    cardModal.hide();
-                    updateCardDisplay(body.card);
-                } else if (status === 400 && !body.success && body.errors) {
-                    displayModalErrors(body.errors);
-                } else {
-                    alert('Ошибка сохранения: ' + (body.error || body.message || 'Неизвестная ошибка сервера.'));
-                }
-            })
-            .catch(error => {
-                console.error('Error saving card via modal:', error);
-                alert('Произошла сетевая ошибка при сохранении карточки.');
-            });
-        });
-
-        function displayModalErrors(errors) {
-            for (const field in errors) {
-                const inputElement = modalForm.querySelector(`[name="${field}"], #${field}`); // Ищем по name или id
-                const errorElementId = `modal${field.charAt(0).toUpperCase() + field.slice(1)}Error`; // e.g. modalTitleError
-                const errorElement = document.getElementById(errorElementId);
-                
-                if (inputElement) {
-                    inputElement.classList.add('is-invalid');
-                     // Для select multiple ошибки могут относиться к самому полю, а не к feedback элементу под ним
-                    if (inputElement.tagName === 'SELECT' && inputElement.multiple) {
-                        let feedback = inputElement.nextElementSibling;
-                        if (feedback && feedback.classList.contains('invalid-feedback')) {
-                            feedback.textContent = errors[field];
-                        } else { // Если нет прямого invalid-feedback, добавляем или показываем в общем
-                             if (!errorElement) console.warn(`No specific error display element found for field: ${field} (id: ${errorElementId})`);
-                        }
-                    }
-                }
-                 if (errorElement) {
-                     errorElement.textContent = errors[field];
-                 } else {
-                     console.warn(`No specific error display element found for field: ${field} (id: ${errorElementId})`);
-                     // Можно показать общую ошибку где-то в модалке
-                     // modalForm.insertAdjacentHTML('afterbegin', `<div class="alert alert-danger">${errors[field]}</div>`);
-                 }
-            }
-        }
-
-        function updateCardDisplay(cardData) {
-            const cardElement = document.getElementById(`card-${cardData.id}`);
-            if (!cardElement) return;
-
-            cardElement.setAttribute('data-card-title', cardData.title);
-            cardElement.setAttribute('data-card-description', cardData.description || '');
-            cardElement.setAttribute('data-card-assignees', JSON.stringify(cardData.assignees || []));
-
-
-            const titleDisplay = cardElement.querySelector('.card-title-display');
-            if (titleDisplay) titleDisplay.textContent = cardData.title;
-
-            const descriptionIndicator = cardElement.querySelector('.card-description-indicator');
-            const detailsContainer = cardElement.querySelector('.card-details-display');
-
-            if (cardData.description) {
-                if (descriptionIndicator) descriptionIndicator.style.display = 'inline';
-                else if(detailsContainer) { // Добавить если не было
-                    const newIndicator = document.createElement('small');
-                    newIndicator.className = 'text-muted card-description-indicator me-2';
-                    newIndicator.title = 'Есть описание';
-                    newIndicator.innerHTML = '📄';
-                    detailsContainer.prepend(newIndicator); // В начало деталей
-                }
-            } else {
-                 if (descriptionIndicator) descriptionIndicator.style.display = 'none';
-            }
-
-            const assigneesListDiv = cardElement.querySelector('.card-assignees-list');
-            if (assigneesListDiv) {
-                assigneesListDiv.innerHTML = ''; // Очистить старые аватарки
-                if (cardData.assignees && cardData.assignees.length > 0) {
-                    cardData.assignees.forEach(assignee => {
-                        const img = document.createElement('img');
-                        img.src = assignee.avatar_url;
-                        img.alt = assignee.username;
-                        img.title = assignee.username;
-                        img.className = 'rounded-circle card-assignee-avatar';
-                        img.style.width = '24px';
-                        img.style.height = '24px';
-                        img.style.objectFit = 'cover';
-                        img.style.marginRight = '-8px';
-                        img.style.border = '1px solid white';
-                        assigneesListDiv.appendChild(img);
-                    });
-                } else {
-                    const noAssigneePlaceholder = document.createElement('small');
-                    noAssigneePlaceholder.className = 'text-muted fst-italic no-assignee-placeholder';
-                    noAssigneePlaceholder.textContent = 'Нет исполнителей';
-                    assigneesListDiv.appendChild(noAssigneePlaceholder);
-                }
-            }
-        }
-
-        // AJAX для удаления (если раскомментировать, форма должна иметь id="deleteCardFormModal")
-        deleteForm.addEventListener('submit', function(event) {
-             event.preventDefault();
-             // confirm уже есть в HTML button onclick, но можно и здесь
-             // if (!confirm('Удалить эту карточку?')) return;
-
-             let deleteCsrfToken = deleteForm.querySelector('input[name="csrf_token"]').value;
-             if (!deleteCsrfToken && csrfToken) deleteCsrfToken = csrfToken; // Фоллбэк на глобальный
-
-             if (!deleteCsrfToken) {
-                 alert('Ошибка: CSRF токен не найден для удаления. Обновите страницу.');
-                 return;
-             }
-
-             fetch(deleteForm.action, {
-                 method: 'POST',
-                 headers: {
-                     'X-Requested-With': 'XMLHttpRequest',
-                     'X-CSRFToken': deleteCsrfToken // Отправка токена в заголовке
-                 },
-                 // FormData не нужен для простого POST, но и не мешает если пустой
-                 // body: new FormData(deleteForm) // если бы были еще поля
-             })
-             .then(response => response.json().then(data => ({ status: response.status, body: data })))
-             .then(({ status, body }) => {
-                  if (status === 200 && body.success) {
-                      cardModal.hide();
-                      const cardIdToDelete = deleteForm.action.split('/').filter(Boolean).pop(); // Получаем ID из action URL
-                      const cardElementToDelete = document.getElementById(`card-${cardIdToDelete}`);
-                      if(cardElementToDelete) {
-                          const columnList = cardElementToDelete.closest('.card-list');
-                          cardElementToDelete.remove();
-                          updateNoCardsPlaceholder(columnList);
-                      }
-                      // Можно добавить flash-сообщение, создав его динамически
-                      // createFlashMessage(body.message || 'Карточка удалена.', 'success');
-                      console.log(body.message || 'Карточка удалена.'); // Временный лог
-                  } else {
-                      alert('Ошибка удаления: ' + (body.error || body.message || 'Неизвестная ошибка.'));
-                  }
-             })
-             .catch(error => {
-                 console.error('Error deleting card via modal AJAX:', error);
-                 alert('Произошла сетевая ошибка при удалении карточки.');
-             });
-         });
-
-
-    } // end if(cardDetailModalEl)
-
-    // --- Drag-and-Drop ---
-    const cardLists = document.querySelectorAll('.card-list');
-    const csrfTokenForDrag = csrfToken; 
-
-    cardLists.forEach(list => {
-        Sortable.create(list, {
-            group: 'cards',
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            dragClass: 'sortable-drag',
-            draggable: '.draggable-card',
-            onEnd: function (evt) {
-                const itemEl = evt.item;
-                const toList = evt.to;
-                const fromList = evt.from;
-                const oldIndex = evt.oldDraggableIndex;
-
-                const cardId = itemEl.getAttribute('data-card-id');
-                const newColumnId = toList.getAttribute('data-column-id');
-
-                updateNoCardsPlaceholder(toList);
-                updateNoCardsPlaceholder(fromList);
-
-                const payload = {
-                    new_column_id: newColumnId
-                };
-
-                if (!csrfTokenForDrag) {
-                    console.error('CSRF token not found for drag-and-drop operation.');
-                    alert('Ошибка: CSRF токен не найден. Пожалуйста, обновите страницу.');
-                    fromList.insertBefore(itemEl, fromList.children[oldIndex]);
-                    updateNoCardsPlaceholder(toList);
-                    updateNoCardsPlaceholder(fromList);
-                    return;
-                }
-
-                fetch(`/api/cards/${cardId}/move`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfTokenForDrag
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(errData => {
-                            throw new Error(errData.error || `Request failed with status ${response.status}`);
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (!data.success) {
-                        console.error('Failed to move card (API):', data.error || data.message);
-                        fromList.insertBefore(itemEl, fromList.children[oldIndex]);
-                        updateNoCardsPlaceholder(toList);
-                        updateNoCardsPlaceholder(fromList);
-                        alert('Ошибка перемещения карточки: ' + (data.error || data.message || 'Неизвестная ошибка'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error during fetch for card move:', error);
-                    fromList.insertBefore(itemEl, fromList.children[oldIndex]);
-                    updateNoCardsPlaceholder(toList);
-                    updateNoCardsPlaceholder(fromList);
-                    alert('Критическая ошибка при перемещении карточки. Пожалуйста, обновите страницу. (' + error.message + ')');
-                });
-            }
-        });
-    });
-
-    function updateNoCardsPlaceholder(listElement) {
-        if (!listElement) return;
-        let placeholder = listElement.querySelector('.no-cards-placeholder');
-        const cardsInList = listElement.querySelectorAll('.draggable-card').length;
-
-        if (cardsInList === 0) {
-            if (!placeholder) {
-                placeholder = document.createElement('div');
-                placeholder.className = 'list-group-item text-muted small fst-italic no-cards-placeholder';
-                placeholder.textContent = 'Нет карточек';
-                listElement.appendChild(placeholder);
-            }
-            placeholder.style.display = 'block';
-        } else {
-            if (placeholder) {
-                placeholder.style.display = 'none';
-            }
-        }
-    }
-
-    cardLists.forEach(list => {
-        updateNoCardsPlaceholder(list);
-    });
-
-    // Активация Bootstrap tooltips для аватарок (если будете использовать)
-    // var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    // var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    //   return new bootstrap.Tooltip(tooltipTriggerEl);
-    // });
-});
-</script>
+{# CSRF токен теперь будет браться из форм на основной странице board.html, а не из модалки, если она была бы здесь #}
+<script src="{{ url_for('static', filename='js/board_logic.js') }}"></script> 
 {% endblock %}
