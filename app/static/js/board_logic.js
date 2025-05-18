@@ -24,6 +24,16 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error("CSRF Token not found on the page for AJAX!");
     }
 
+    // Элементы для поиска и фильтрации
+    const searchInput = document.getElementById('searchInput');
+    const filterAssigneesSelect = document.getElementById('filterAssignees');
+    const filterTagsSelect = document.getElementById('filterTags');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    
+    // Состояние сортировки для каждой колонки { columnId: 'asc' | 'desc' | 'none' }
+    let columnSortStates = {}; 
+
+
     if (cardDetailModalEl) {
         var modalForm = document.getElementById('editCardFormModal');
         var modalTitleField = document.getElementById('modalCardTitle');
@@ -39,15 +49,14 @@ document.addEventListener('DOMContentLoaded', function () {
         var modalCommentText = document.getElementById('modalCommentText');
         var modalCommentTextError = document.getElementById('modalCommentTextError');
         var commentsLoader = document.getElementById('commentsLoader');
-
-        // Элементы для Тегов
+        
         var modalCardTagsSelect = document.getElementById('modalCardTags');
         var modalSelectedTagsPreview = document.getElementById('modalSelectedTagsPreview');
         
-        var boardTagFormModal = document.getElementById('boardTagFormModal'); // Изменен ID
+        var boardTagFormModal = document.getElementById('boardTagFormModal'); 
         var boardTagFormModalTitle = document.getElementById('boardTagFormModalTitle');
-        var modalTagFormName = document.getElementById('modalTagFormName'); // Изменен ID
-        var modalTagFormColor = document.getElementById('modalTagFormColor'); // Изменен ID
+        var modalTagFormName = document.getElementById('modalTagFormName'); 
+        var modalTagFormColor = document.getElementById('modalTagFormColor'); 
         var submitBoardTagBtn = document.getElementById('submitBoardTagBtn');
         var cancelEditBoardTagBtn = document.getElementById('cancelEditBoardTagBtn');
 
@@ -120,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
             modalCardTagsSelect.addEventListener('change', renderSelectedTagsPreviewModal);
         }
 
-
         cardDetailModalEl.addEventListener('show.bs.modal', async function (event) {
             var cardElement = event.relatedTarget; 
             if (!cardElement || !cardElement.classList.contains('draggable-card')) {
@@ -140,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
             modalForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
             modalForm.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
             
-            resetBoardTagForm(); // Сброс формы тегов доски при открытии модалки
+            resetBoardTagForm(); 
 
             if(modalCommentTextError) modalCommentTextError.textContent = '';
             if(modalCommentText) modalCommentText.classList.remove('is-invalid');
@@ -181,7 +189,6 @@ document.addEventListener('DOMContentLoaded', function () {
             
             fetchBoardTags(currentBoardId);
 
-
             let deleteCsrfInput = deleteForm.querySelector('input[name="csrf_token"]');
             if (deleteCsrfInput && csrfToken) {
                  deleteCsrfInput.value = csrfToken;
@@ -199,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 if (commentCsrf) commentCsrf.value = csrfToken;
             }
-            if (boardTagFormModal) { // CSRF для формы тегов
+            if (boardTagFormModal) { 
                 let tagCsrf = boardTagFormModal.querySelector('input[name="csrf_token"]');
                  if (!tagCsrf && csrfToken){
                     tagCsrf = document.createElement('input');
@@ -252,6 +259,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(({ status, body }) => {
                 if (status === 200 && body.success) {
                     updateCardDisplay(body.card); 
+                    applyFiltersAndSort(); // Применить фильтры и сортировку после сохранения
                 } else if (status === 400 && !body.success && body.errors) {
                     displayModalErrors(body.errors, modalForm);
                 } else {
@@ -282,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function () {
                  deleteCsrfToken = csrfToken;
              }
 
-
              if (!deleteCsrfToken) {
                  alert('Ошибка: CSRF токен не найден для удаления. Обновите страницу.');
                  return;
@@ -305,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function () {
                       if(cardElementToDelete) {
                           const columnList = cardElementToDelete.closest('.card-list');
                           cardElementToDelete.remove();
-                          updateNoCardsPlaceholder(columnList);
+                          updateNoCardsPlaceholder(columnList); // Обновляем плейсхолдер только для этой колонки
                       }
                   } else {
                       alert('Ошибка удаления карточки: ' + (body.error || body.message || 'Неизвестная ошибка.'));
@@ -322,15 +329,15 @@ document.addEventListener('DOMContentLoaded', function () {
             targetForm.querySelectorAll('.invalid-feedback').forEach(el => { el.textContent = ''; el.style.display = 'none';});
         
             for (const field in errors) {
-                const inputElement = targetForm.querySelector(`[name="${field}"]`) || targetForm.querySelector(`#modal${field.charAt(0).toUpperCase() + field.slice(1)}`) || targetForm.querySelector(`#modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}`); // Добавлено для формы тегов
-                const errorElementId = `modal${field.charAt(0).toUpperCase() + field.slice(1)}Error` // Для основной формы карточки
-                                  || `modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}Error`; // Для формы тега
+                const inputElement = targetForm.querySelector(`[name="${field}"]`) || targetForm.querySelector(`#modal${field.charAt(0).toUpperCase() + field.slice(1)}`) || targetForm.querySelector(`#modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}`); 
+                const errorElementId = `modal${field.charAt(0).toUpperCase() + field.slice(1)}Error` 
+                                  || `modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}Error`; 
                 let errorFeedbackElement = targetForm.querySelector(`.invalid-feedback[data-field-error="${field}"]`) || document.getElementById(errorElementId);
         
                 if (inputElement) {
                     inputElement.classList.add('is-invalid');
                     if (!errorFeedbackElement) {
-                        errorFeedbackElement = inputElement.closest('.mb-2, .mb-3').querySelector('.invalid-feedback'); // Ищем внутри родительского блока
+                        errorFeedbackElement = inputElement.closest('.mb-2, .mb-3').querySelector('.invalid-feedback'); 
                     }
                 }
                 if (errorFeedbackElement) {
@@ -359,7 +366,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-
         function updateCardDisplay(cardData) {
             const cardElement = document.getElementById(`card-${cardData.id}`);
             if (!cardElement) return;
@@ -369,13 +375,19 @@ document.addEventListener('DOMContentLoaded', function () {
             cardElement.setAttribute('data-card-assignees', JSON.stringify(cardData.assignees || []));
             cardElement.setAttribute('data-card-tags', JSON.stringify(cardData.tags || [])); 
 
+            // Обновляем data-first-assignee-name для сортировки
+            let firstAssigneeName = '';
+            if (cardData.assignees && cardData.assignees.length > 0) {
+                firstAssigneeName = cardData.assignees[0].username.toLowerCase();
+            }
+            cardElement.setAttribute('data-first-assignee-name', firstAssigneeName);
+
 
             const titleDisplay = cardElement.querySelector('.card-title-display');
             if (titleDisplay) titleDisplay.textContent = cardData.title;
             if (currentCardId == cardData.id && modalLabel.textContent.startsWith('Карточка:')) {
                  modalLabel.textContent = 'Карточка: ' + cardData.title;
             }
-
 
             const descriptionIndicator = cardElement.querySelector('.card-description-indicator');
             const detailsContainer = cardElement.querySelector('.card-details-display');
@@ -676,8 +688,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (unsafe === null || typeof unsafe === 'undefined') return '';
             return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
-
-        // --- Функции для Тегов ---
+        
         async function fetchBoardTags(boardId, selectTagIdToEdit = null) {
             if (!boardId || !boardTagsListModal || !boardTagsLoaderModal) return;
             boardTagsLoaderModal.style.display = 'block';
@@ -690,9 +701,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 boardTagsLoaderModal.style.display = 'none';
                 if (data.success) {
                     renderBoardTagsList(data.tags);
-                    if (selectTagIdToEdit) { // Если нужно подсветить или как-то выделить тег для редактирования
+                    if (selectTagIdToEdit) { 
                         const tagToEditEl = boardTagsListModal.querySelector(`.list-group-item[data-tag-id="${selectTagIdToEdit}"]`);
-                        // тут можно добавить класс или фокус
                     }
                 } else {
                     boardTagsListModal.innerHTML = `<div class="list-group-item text-danger small">${data.error || 'Не удалось загрузить теги доски.'}</div>`;
@@ -713,7 +723,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             tags.forEach(tag => {
                 const item = document.createElement('div');
-                item.className = 'list-group-item d-flex justify-content-between align-items-center py-1 px-2'; // Уменьшил паддинги
+                item.className = 'list-group-item d-flex justify-content-between align-items-center py-1 px-2'; 
                 item.dataset.tagId = tag.id;
                 item.dataset.tagName = tag.name;
                 item.dataset.tagColor = tag.color;
@@ -735,7 +745,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn btn-link btn-sm p-0 text-danger btn-delete-board-tag'; 
-                deleteBtn.innerHTML = '✖';  // Используем крестик для удаления
+                deleteBtn.innerHTML = '✖';  
                 deleteBtn.title = "Удалить тег";
                 deleteBtn.dataset.tagId = tag.id;
 
@@ -750,7 +760,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         function populateTagSelect(allBoardTags, selectedCardTagIds = []) {
             if (!modalCardTagsSelect) return;
-            const currentSelections = Array.from(modalCardTagsSelect.selectedOptions).map(opt => opt.value); // Сохраняем текущий выбор, если есть
+            const currentSelections = Array.from(modalCardTagsSelect.selectedOptions).map(opt => opt.value); 
             modalCardTagsSelect.innerHTML = ''; 
         
             allBoardTags.forEach(tag => {
@@ -758,7 +768,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 option.value = tag.id;
                 option.textContent = tag.name;
                 option.dataset.color = tag.color; 
-                if (selectedCardTagIds.includes(tag.id) || currentSelections.includes(tag.id.toString())) { // Восстанавливаем выбор
+                if (selectedCardTagIds.includes(tag.id) || currentSelections.includes(tag.id.toString())) { 
                     option.selected = true;
                 }
                 modalCardTagsSelect.appendChild(option);
@@ -769,11 +779,10 @@ document.addEventListener('DOMContentLoaded', function () {
         function resetBoardTagForm() {
             if (!boardTagFormModal) return;
             boardTagFormModal.reset();
-            boardTagFormModal.dataset.currentTagId = ''; // Сбрасываем ID редактируемого тега
+            boardTagFormModal.dataset.currentTagId = ''; 
             if (boardTagFormModalTitle) boardTagFormModalTitle.textContent = 'Создать новый тег';
             if (submitBoardTagBtn) submitBoardTagBtn.textContent = 'Создать тег';
             if (cancelEditBoardTagBtn) cancelEditBoardTagBtn.style.display = 'none';
-            // Очистка ошибок
             boardTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
             boardTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => {el.textContent = ''; el.style.display = 'none';});
         }
@@ -781,8 +790,7 @@ document.addEventListener('DOMContentLoaded', function () {
             cancelEditBoardTagBtn.addEventListener('click', resetBoardTagForm);
         }
 
-
-        if (boardTagFormModal) { // Переименовано с createTagFormModal
+        if (boardTagFormModal) { 
             boardTagFormModal.addEventListener('submit', async function(event) {
                 event.preventDefault();
                 if (!currentBoardId || !csrfToken) {
@@ -797,7 +805,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const tagIdToEdit = boardTagFormModal.dataset.currentTagId;
                 const url = tagIdToEdit ? `/api/tags/${tagIdToEdit}/edit` : `/api/boards/${currentBoardId}/tags/create`;
-                const method = 'POST'; // Flask-WTF обычно ожидает POST
+                const method = 'POST'; 
 
                 try {
                     const response = await fetch(url, {
@@ -805,7 +813,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         headers: {'X-Requested-With': 'XMLHttpRequest'},
                         body: formData
                     });
-                    const bodyData = await response.json(); // Читаем тело ответа один раз
+                    const bodyData = await response.json(); 
                     const status = response.status;
                 
                     boardTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
@@ -813,21 +821,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if ((status === 201 || status === 200) && bodyData.success && bodyData.tag) {
                         resetBoardTagForm(); 
-                        await fetchBoardTags(currentBoardId); // Обновляем список тегов доски
+                        await fetchBoardTags(currentBoardId); 
                         
-                        // Обновляем селект тегов на карточке
                         const boardTagsResponse = await fetch(`/api/boards/${currentBoardId}/tags`);
-                        const boardTagsData = await boardTagsResponse.json();
-                        if (boardTagsData.success) {
+                        const allBoardTagsData = await boardTagsResponse.json(); // Переименовано для ясности
+                        if (allBoardTagsData.success) { // Используем новое имя переменной
                             const currentSelectedCardTagIds = Array.from(modalCardTagsSelect.selectedOptions).map(opt => parseInt(opt.value));
-                             // Если создавали новый тег, добавляем его ID к выбранным, чтобы он остался выделенным
                             if (status === 201 && !currentSelectedCardTagIds.includes(bodyData.tag.id)) {
                                 currentSelectedCardTagIds.push(bodyData.tag.id);
                             }
-                            populateTagSelect(boardTagsData.tags, currentSelectedCardTagIds);
+                            populateTagSelect(allBoardTagsData.tags, currentSelectedCardTagIds); // Используем новое имя
                         }
-                        // Обновить теги на всех карточках на доске
-                        updateAllCardTagDisplays(bodyData.tag.id, bodyData.tag, (status === 200 && tagIdToEdit)); // true если это было редактирование
+                        updateAllCardTagDisplays(bodyData.tag.id, bodyData.tag, (status === 200 && tagIdToEdit)); 
+                        applyFiltersAndSort(); // Применить фильтры после изменения тегов
                         
                     } else if (status === 400 && !bodyData.success && bodyData.errors) {
                         displayModalErrors(bodyData.errors, boardTagFormModal);
@@ -841,7 +847,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
         
-        // Обработчики для кнопок редактирования и удаления тегов доски
         if (boardTagsListModal) {
             boardTagsListModal.addEventListener('click', async function(event){
                 const target = event.target;
@@ -861,7 +866,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (boardTagFormModal) boardTagFormModal.dataset.currentTagId = tagId;
                     if (cancelEditBoardTagBtn) cancelEditBoardTagBtn.style.display = 'inline-block';
                     
-                    // Очистка ошибок предыдущей валидации
                     boardTagFormModal.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
                     boardTagFormModal.querySelectorAll('.invalid-feedback').forEach(el => { el.textContent = ''; el.style.display = 'none'; });
                 }
@@ -884,19 +888,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                         const body = await response.json();
                         if (response.ok && body.success) {
-                            await fetchBoardTags(currentBoardId); // Обновить список тегов доски
+                            await fetchBoardTags(currentBoardId); 
                            
-                            // Обновить селект тегов на карточке
                             const boardTagsResponse = await fetch(`/api/boards/${currentBoardId}/tags`);
-                            const boardTagsData = await boardTagsResponse.json();
-                            if (boardTagsData.success) {
+                            const allBoardTagsData = await boardTagsResponse.json(); // Переименовано
+                            if (allBoardTagsData.success) { // Используем новое имя
                                 const currentSelectedCardTagIds = Array.from(modalCardTagsSelect.selectedOptions)
                                                                      .map(opt => parseInt(opt.value))
-                                                                     .filter(id => id !== parseInt(tagId)); // Удаляем ID удаленного тега
-                                populateTagSelect(boardTagsData.tags, currentSelectedCardTagIds);
+                                                                     .filter(id => id !== parseInt(tagId)); 
+                                populateTagSelect(allBoardTagsData.tags, currentSelectedCardTagIds); // Используем новое имя
                             }
-                             // Обновить теги на всех карточках на доске
-                            updateAllCardTagDisplays(tagId, null, false, true); // true для isDeletion
+                            updateAllCardTagDisplays(tagId, null, false, true); 
+                            applyFiltersAndSort(); // Применить фильтры после удаления тега
                         } else {
                             alert('Ошибка удаления тега: ' + (body.error || body.message || "Неизвестная ошибка."));
                         }
@@ -921,21 +924,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         const initialLength = cardTags.length;
                         cardTags = cardTags.filter(t => t.id !== parseInt(tagId));
                         if (cardTags.length !== initialLength) changed = true;
-                    } else if (isEdit && updatedTagData) { // Редактирование
+                    } else if (isEdit && updatedTagData) { 
                         const tagIndex = cardTags.findIndex(t => t.id === parseInt(tagId));
                         if (tagIndex > -1) {
                             cardTags[tagIndex].name = updatedTagData.name;
                             cardTags[tagIndex].color = updatedTagData.color;
                             changed = true;
                         }
-                    } else if (!isEdit && !isDeletion && updatedTagData) { // Добавление нового тега (напрямую к карточке, если нужно)
-                        // Этот сценарий обычно обрабатывается через сохранение карточки,
-                        // но если тег создается и сразу должен появиться на текущей открытой карточке (если выбран)
-                        // то это обработается при следующем сохранении карточки.
-                        // Либо, если нужно немедленно, то это сложнее, т.к. надо знать, выбран ли он для текущей карты.
                     }
-
-
                     if (changed) {
                         cardEl.setAttribute('data-card-tags', JSON.stringify(cardTags));
                         updateTagsOnCardElement(cardEl, cardTags);
@@ -945,7 +941,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
         }
-
 
         function checkUrlAndOpenModal() {
             const path = window.location.pathname;
@@ -980,6 +975,143 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     } 
 
+    // --- Логика Поиска, Фильтрации и Сортировки ---
+    function applyFiltersAndSort() {
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        const selectedAssigneeIds = filterAssigneesSelect ? Array.from(filterAssigneesSelect.selectedOptions).map(opt => opt.value) : [];
+        const selectedTagIds = filterTagsSelect ? Array.from(filterTagsSelect.selectedOptions).map(opt => opt.value) : [];
+
+        document.querySelectorAll('.card-list').forEach(columnList => {
+            const columnId = columnList.dataset.columnId;
+            let visibleCardsInColumn = [];
+
+            columnList.querySelectorAll('.draggable-card').forEach(cardEl => {
+                const cardTitle = (cardEl.dataset.cardTitle || '').toLowerCase();
+                const cardDescription = (cardEl.dataset.cardDescription || '').toLowerCase();
+                
+                let cardAssignees = [];
+                try { cardAssignees = JSON.parse(cardEl.dataset.cardAssignees || '[]').map(a => a.id.toString()); } 
+                catch (e) { console.warn('Error parsing card assignees for filter:', e, cardEl.dataset.cardAssignees); }
+
+                let cardTags = [];
+                try { cardTags = JSON.parse(cardEl.dataset.cardTags || '[]').map(t => t.id.toString()); }
+                catch (e) { console.warn('Error parsing card tags for filter:', e, cardEl.dataset.cardTags); }
+
+                // Поиск
+                const searchMatch = searchTerm === '' || cardTitle.includes(searchTerm) || cardDescription.includes(searchTerm);
+
+                // Фильтр по исполнителям
+                let assigneeMatch = true;
+                if (selectedAssigneeIds.length > 0) {
+                    assigneeMatch = selectedAssigneeIds.some(id => cardAssignees.includes(id));
+                }
+
+                // Фильтр по тегам
+                let tagMatch = true;
+                if (selectedTagIds.length > 0) {
+                    tagMatch = selectedTagIds.some(id => cardTags.includes(id));
+                }
+
+                if (searchMatch && assigneeMatch && tagMatch) {
+                    cardEl.style.display = '';
+                    visibleCardsInColumn.push(cardEl);
+                } else {
+                    cardEl.style.display = 'none';
+                }
+            });
+
+            // Сортировка видимых карточек в колонке
+            const sortOrder = columnSortStates[columnId] || 'none'; // 'none', 'asc', 'desc'
+            if (sortOrder !== 'none' && visibleCardsInColumn.length > 0) {
+                visibleCardsInColumn.sort((a, b) => {
+                    const nameA = a.dataset.firstAssigneeName || '\uffff'; // '\uffff' - очень большой символ, чтобы пустые были в конце при asc
+                    const nameB = b.dataset.firstAssigneeName || '\uffff';
+                    
+                    if (sortOrder === 'asc') {
+                        return nameA.localeCompare(nameB);
+                    } else { // desc
+                        return nameB.localeCompare(nameA);
+                    }
+                });
+            }
+            
+            // Переупорядочиваем DOM элементы в соответствии с сортировкой
+            visibleCardsInColumn.forEach(cardNode => columnList.appendChild(cardNode));
+
+            updateNoCardsPlaceholder(columnList);
+        });
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', applyFiltersAndSort);
+    }
+    if (filterAssigneesSelect) {
+        filterAssigneesSelect.addEventListener('change', applyFiltersAndSort);
+    }
+    if (filterTagsSelect) {
+        filterTagsSelect.addEventListener('change', applyFiltersAndSort);
+    }
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener('click', () => {
+            if(searchInput) searchInput.value = '';
+            if(filterAssigneesSelect) Array.from(filterAssigneesSelect.options).forEach(opt => opt.selected = false);
+            if(filterTagsSelect) Array.from(filterTagsSelect.options).forEach(opt => opt.selected = false);
+            
+            // Сброс состояния сортировки для всех колонок
+            document.querySelectorAll('.sort-cards-btn').forEach(btn => {
+                btn.classList.remove('active-sort-asc', 'active-sort-desc');
+                btn.innerHTML = btn.innerHTML.replace(/ ▲| ▼/, ''); // Убираем стрелки
+            });
+            columnSortStates = {}; // Очищаем состояние сортировки
+
+            applyFiltersAndSort();
+        });
+    }
+    
+    // Обработчики для кнопок сортировки
+    document.querySelectorAll('.sort-cards-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const columnId = this.dataset.columnId;
+            const sortBy = this.dataset.sortBy; // Пока только 'assignee'
+
+            // Сбрасываем сортировку в других колонках (опционально, или делаем независимой)
+            // document.querySelectorAll(`.sort-cards-btn:not([data-column-id="${columnId}"])`).forEach(btn => {
+            //     btn.classList.remove('active-sort-asc', 'active-sort-desc');
+            //     columnSortStates[btn.dataset.columnId] = 'none';
+            // });
+
+            let currentSortOrder = columnSortStates[columnId] || 'none';
+            let nextSortOrder = 'asc';
+
+            if (currentSortOrder === 'asc') {
+                nextSortOrder = 'desc';
+            } else if (currentSortOrder === 'desc') {
+                nextSortOrder = 'none'; // Третий клик - сброс
+            }
+            
+            columnSortStates[columnId] = nextSortOrder;
+
+            // Обновляем UI кнопок сортировки
+            document.querySelectorAll(`.sort-cards-btn[data-column-id="${columnId}"]`).forEach(btn => {
+                btn.classList.remove('active-sort-asc', 'active-sort-desc');
+                btn.innerHTML = btn.innerHTML.replace(/ ▲| ▼/, ''); // Убираем старые стрелки
+            });
+
+            if (nextSortOrder === 'asc') {
+                this.classList.add('active-sort-asc');
+                this.innerHTML += ' ▲';
+            } else if (nextSortOrder === 'desc') {
+                this.classList.add('active-sort-desc');
+                this.innerHTML += ' ▼';
+            }
+            // Если nextSortOrder === 'none', классы не добавляются, стрелки не добавляются
+
+            applyFiltersAndSort();
+        });
+    });
+
+
+    // --- Drag-and-drop логика ---
     const cardLists = document.querySelectorAll('.card-list');
     const csrfTokenForDrag = csrfToken; 
 
@@ -1000,6 +1132,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 const cardId = itemEl.getAttribute('data-card-id');
                 const newColumnId = toList.getAttribute('data-column-id');
 
+                // Сброс сортировки для колонки, куда перетащили, и откуда перетащили, 
+                // т.к. ручное перетаскивание меняет порядок
+                const toColumnIdSort = toList.dataset.columnId;
+                const fromColumnIdSort = fromList.dataset.columnId;
+                
+                [toColumnIdSort, fromColumnIdSort].forEach(colId => {
+                    if (columnSortStates[colId] && columnSortStates[colId] !== 'none') {
+                        columnSortStates[colId] = 'none';
+                        const sortBtn = document.querySelector(`.sort-cards-btn[data-column-id="${colId}"]`);
+                        if (sortBtn) {
+                            sortBtn.classList.remove('active-sort-asc', 'active-sort-desc');
+                            sortBtn.innerHTML = sortBtn.innerHTML.replace(/ ▲| ▼/, '');
+                        }
+                    }
+                });
+
+
                 updateNoCardsPlaceholder(toList);
                 updateNoCardsPlaceholder(fromList);
 
@@ -1008,7 +1157,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!csrfTokenForDrag) {
                     console.error('CSRF token not found for drag-and-drop.');
                     alert('Ошибка: CSRF токен. Обновите страницу.');
-                    fromList.insertBefore(itemEl, fromList.children[oldIndex]);
+                    fromList.insertBefore(itemEl, fromList.children[oldIndex]); // Возвращаем элемент
                     updateNoCardsPlaceholder(toList);
                     updateNoCardsPlaceholder(fromList);
                     return;
@@ -1037,6 +1186,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         updateNoCardsPlaceholder(toList);
                         updateNoCardsPlaceholder(fromList);
                         alert('Ошибка перемещения: ' + (data.error || data.message || 'Неизвестная ошибка'));
+                    } else {
+                         // Если успешно перемещено, нужно заново применить фильтры и сортировку,
+                         // так как карточка могла стать видимой/невидимой в новой колонке
+                         // или порядок в старой изменился.
+                         // Однако, applyFiltersAndSort уже вызывается в конце, что может быть избыточно,
+                         // но гарантирует консистентность.
+                         // Для оптимизации, можно было бы только для затронутых колонок.
                     }
                 })
                 .catch(error => {
@@ -1052,13 +1208,15 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateNoCardsPlaceholder(listElement) {
         if (!listElement) return;
         let placeholder = listElement.querySelector('.no-cards-placeholder');
-        const cardsInList = listElement.querySelectorAll('.draggable-card').length;
+        // Считаем только видимые карточки (не display:none)
+        const cardsInList = Array.from(listElement.querySelectorAll('.draggable-card')).filter(card => card.style.display !== 'none').length;
+
 
         if (cardsInList === 0) {
             if (!placeholder) {
                 placeholder = document.createElement('div');
                 placeholder.className = 'list-group-item text-muted small fst-italic no-cards-placeholder';
-                placeholder.textContent = 'Нет карточек';
+                placeholder.textContent = 'Нет карточек (или не соответствуют фильтру)';
                 listElement.appendChild(placeholder);
             }
             placeholder.style.display = 'block';
@@ -1068,7 +1226,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     }
+    // Инициализация плейсхолдеров при загрузке
     cardLists.forEach(list => {
         updateNoCardsPlaceholder(list);
     });
+     // Первоначальное применение фильтров (если значения уже есть, например, из localStorage - пока не делаем)
+    applyFiltersAndSort(); 
 });

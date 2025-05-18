@@ -1,6 +1,5 @@
 /* Ваши пользовательские стили могут быть здесь */
 body {
-    /* Пример: можно добавить немного больше отступа снизу */
     padding-bottom: 20px;
 }
 
@@ -8,77 +7,98 @@ body {
     cursor: pointer;
 }
 .card-item-clickable:hover {
-    background-color: #f0f0f0; /* Немного темнее для лучшей видимости hover */
+    background-color: #f0f0f0; 
 }
 
-/* Для корректного отображения переносов строк в описании в модальном окне */
 #staticCardDescription {
     white-space: pre-wrap;
     word-break: break-word;
 }
 
-/* Стили для тегов */
 .tag-badge {
     display: inline-block;
-    width: 20px; /* Ширина цветной метки */
-    height: 10px; /* Высота цветной метки */
-    border-radius: 3px; /* Небольшое скругление */
-    /* background-color устанавливается инлайн */
+    width: 20px; 
+    height: 10px; 
+    border-radius: 3px; 
     vertical-align: middle;
 }
 
 .card-tags-display {
-    min-height: 10px; /* Чтобы контейнер не схлопывался, если тегов нет */
+    min-height: 10px; 
 }
 
-/* В модальном окне для превью выбранных тегов */
 .tag-preview-item {
-    display: inline-flex; /* Используем flex для выравнивания */
-    align-items: center; /* Выравниваем по центру вертикально */
+    display: inline-flex; 
+    align-items: center; 
     padding: 0.2em 0.5em;
     margin-right: 5px;
     margin-bottom: 5px;
     border-radius: 0.25rem;
     font-size: 0.85em;
-    border: 1px solid #ccc; /* Добавим рамку для лучшего вида */
+    border: 1px solid #ccc; 
 }
 
 .tag-color-preview {
     width: 12px;
     height: 12px;
-    border-radius: 50%; /* Круглый индикатор цвета */
+    border-radius: 50%; 
     margin-right: 5px;
     display: inline-block;
-    border: 1px solid rgba(0,0,0,0.1); /* Тонкая рамка для светлых цветов */
+    border: 1px solid rgba(0,0,0,0.1); 
 }
 
-.tag-name-preview {
-    /* Стили для имени тега в превью, если нужны */
-}
-
-/* Стили для списка тегов доски в модалке */
 #boardTagsListModal .list-group-item {
-    padding: 0.5rem 0.75rem; /* Уменьшаем паддинги */
+    padding: 0.5rem 0.75rem; 
     font-size: 0.9em;
 }
-#boardTagsListModal .list-group-item .tag-color-preview { /* Применяем и здесь, если нужно */
+#boardTagsListModal .list-group-item .tag-color-preview { 
     width: 10px;
     height: 10px;
 }
 #boardTagsListModal .btn-edit-board-tag,
 #boardTagsListModal .btn-delete-board-tag {
     padding: 0.1rem 0.3rem;
-    font-size: 0.8em; /* Уменьшаем иконки, если они текстовые */
-    line-height: 1; /* Для лучшего вида текстовых иконок */
-    text-decoration: none; /* Убираем подчеркивание у ссылок-кнопок */
+    font-size: 0.8em; 
+    line-height: 1; 
+    text-decoration: none; 
 }
 #boardTagsListModal .btn-edit-board-tag:hover,
 #boardTagsListModal .btn-delete-board-tag:hover {
     text-decoration: none;
 }
 
-
-.form-control-color { /* Bootstrap 5.1+ has this, but for older versions or consistency */
-    min-height: calc(1.5em + .5rem + 2px); /* Match sm input height */
+.form-control-color { 
+    min-height: calc(1.5em + .5rem + 2px); 
     padding: .25rem .5rem;
+}
+
+/* Стили для панели фильтров */
+#filtersPanel .form-label {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+#filtersPanel .form-select-sm, #filtersPanel .form-control-sm {
+    font-size: 0.875rem;
+}
+
+/* Стили для кнопок сортировки в заголовках колонок */
+.column-header .sort-cards-btn {
+    /* Можно добавить стили, если иконки текстовые */
+}
+.column-header .sort-cards-btn.active-sort-asc::after {
+    content: " ▲"; /* Стрелка вверх */
+    font-size: 0.8em;
+}
+.column-header .sort-cards-btn.active-sort-desc::after {
+    content: " ▼"; /* Стрелка вниз */
+    font-size: 0.8em;
+}
+.column-actions { /* Контейнер для всех действий в заголовке колонки */
+    white-space: nowrap; /* Предотвращает перенос кнопок */
+}
+.column-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: calc(100% - 100px); /* Оставляем место для кнопок, подбирать по факту */
 }

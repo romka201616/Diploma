@@ -8,9 +8,9 @@ from app import app, db
 from app.forms import (
     LoginForm, RegistrationForm, BoardForm, ColumnForm, CardForm, CommentForm, 
     InviteUserForm, UpdateAccountForm, ChangePasswordForm, UpdateAvatarForm, AdminEditUserForm,
-    TagForm # Добавлена TagForm
+    TagForm 
 )
-from app.models import User, Board, Column, Card, Comment, Tag # Добавлена Tag
+from app.models import User, Board, Column, Card, Comment, Tag 
 from sqlalchemy import or_, exc
 import os
 from functools import wraps
@@ -298,10 +298,10 @@ def view_board(board_id, card_id_in_url=None):
     card_form = CardForm() 
     invite_form = InviteUserForm()
     comment_form = CommentForm() 
-    tag_form = TagForm() # Форма для создания тега
+    tag_form = TagForm() 
 
     _populate_assignee_choices(card_form, board) 
-    _populate_tag_choices(card_form, board) # Заполняем теги для CardForm
+    _populate_tag_choices(card_form, board) 
 
     if request.method == 'POST': 
         if column_form.validate_on_submit() and 'submit_column' in request.form: 
@@ -325,12 +325,18 @@ def view_board(board_id, card_id_in_url=None):
         if not card_to_open:
             flash(f'Карточка с ID {card_id_in_url} не найдена на этой доске.', 'warning')
             return redirect(url_for('view_board', board_id=board_id))
+    
+    # Данные для фильтров
+    board_all_users = board.get_eligible_assignees() # Используем существующий метод
+    board_all_tags = board.tags.order_by(Tag.name).all()
+
 
     return render_template('board.html', title=f"Доска: {board.name}", board=board,
                            columns=columns, column_form=column_form, card_form=card_form,
-                           invite_form=invite_form, comment_form=comment_form, tag_form=tag_form,
+                           invite_form=invite_form, comment_form=comment_form, tag_form=tag_form, 
                            board_members=board_members_list, is_owner=is_owner,
-                           card_id_to_open_on_load=card_to_open.id if card_to_open else None)
+                           card_id_to_open_on_load=card_to_open.id if card_to_open else None,
+                           board_all_users=board_all_users, board_all_tags=board_all_tags)
 
 
 @app.route('/boards/<int:board_id>/invite', methods=['POST'])
@@ -439,7 +445,7 @@ def create_card(column_id):
 
     card_form = CardForm(request.form) 
     _populate_assignee_choices(card_form, board)
-    _populate_tag_choices(card_form, board) # Заполняем теги
+    _populate_tag_choices(card_form, board) 
 
     if card_form.validate_on_submit():
         new_card = Card(
@@ -491,13 +497,13 @@ def edit_card(card_id):
 
     form = CardForm(request.form if request.method == 'POST' else None) 
     _populate_assignee_choices(form, board)
-    _populate_tag_choices(form, board) # Заполняем теги
+    _populate_tag_choices(form, board) 
 
     if request.method == 'GET':
         form.title.data = card.title
         form.description.data = card.description
         form.assignees.data = [assignee.id for assignee in card.assignees.all()]
-        form.tags.data = [tag.id for tag in card.tags.all()] # Теги для GET
+        form.tags.data = [tag.id for tag in card.tags.all()] 
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest': 
             assignees_data = [{'id': u.id, 'username': u.username, 'avatar_url': u.get_avatar()} for u in card.assignees.all()]
@@ -513,10 +519,10 @@ def edit_card(card_id):
                     'description': card.description or "",
                     'assignees': assignees_data,
                     'assignee_ids': [u.id for u in card.assignees.all()],
-                    'tags': tags_data, # Текущие теги карточки
-                    'tag_ids': [t.id for t in card.tags.all()] # ID текущих тегов карточки
+                    'tags': tags_data, 
+                    'tag_ids': [t.id for t in card.tags.all()] 
                 },
-                board_tags=board_tags_data # Все теги доски
+                board_tags=board_tags_data 
             )
         else: 
             flash('Для редактирования карточек используется модальное окно.', 'info')
@@ -529,7 +535,6 @@ def edit_card(card_id):
                 card.title = form.title.data
                 card.description = form.description.data
                 
-                # Обновление исполнителей
                 new_assignee_ids = set(form.assignees.data if form.assignees.data else [])
                 current_assignee_ids_on_card = {user.id for user in card.assignees}
                 
@@ -547,7 +552,6 @@ def edit_card(card_id):
                         if user not in card.assignees: 
                              card.assignees.append(user)
 
-                # Обновление тегов
                 new_tag_ids = set(form.tags.data if form.tags.data else [])
                 current_tag_ids_on_card = {tag.id for tag in card.tags}
 
@@ -764,7 +768,7 @@ def get_board_tags(board_id):
 @login_required
 def create_tag_for_board(board_id):
     board = Board.query.get_or_404(board_id)
-    if not current_user.can_edit_board(board): # Или can_delete_board(board) если только владелец может создавать теги
+    if not current_user.can_edit_board(board): 
         return jsonify(success=False, error="Нет прав для создания тегов на этой доске."), 403
 
     form = TagForm()
@@ -774,7 +778,7 @@ def create_tag_for_board(board_id):
             db.session.add(new_tag)
             db.session.commit()
             return jsonify(success=True, tag={'id': new_tag.id, 'name': new_tag.name, 'color': new_tag.color}), 201
-        except exc.IntegrityError: # Перехват ошибки уникальности (имя тега уже существует на доске)
+        except exc.IntegrityError: 
             db.session.rollback()
             return jsonify(success=False, errors={'name': f'Тег с именем "{form.name.data}" уже существует на этой доске.'}), 400
         except Exception as e:
@@ -791,15 +795,14 @@ def create_tag_for_board(board_id):
 def edit_tag(tag_id):
     tag_to_edit = Tag.query.get_or_404(tag_id)
     board = tag_to_edit.board
-    if not current_user.can_edit_board(board): # Или can_delete_board(board)
+    if not current_user.can_edit_board(board): 
         return jsonify(success=False, error="Нет прав для редактирования тегов этой доски."), 403
 
     form = TagForm()
     if form.validate_on_submit():
         try:
-            # Проверка на уникальность имени, если оно изменилось
             if tag_to_edit.name != form.name.data:
-                existing_tag = Tag.query.filter_by(name=form.name.data, board_id=board.id).first()
+                existing_tag = Tag.query.filter(Tag.name == form.name.data, Tag.board_id == board.id, Tag.id != tag_id).first()
                 if existing_tag:
                     return jsonify(success=False, errors={'name': f'Тег с именем "{form.name.data}" уже существует на этой доске.'}), 400
             
@@ -807,7 +810,7 @@ def edit_tag(tag_id):
             tag_to_edit.color = form.color.data
             db.session.commit()
             return jsonify(success=True, tag={'id': tag_to_edit.id, 'name': tag_to_edit.name, 'color': tag_to_edit.color})
-        except exc.IntegrityError: # На всякий случай, хотя проверка выше
+        except exc.IntegrityError: 
             db.session.rollback()
             return jsonify(success=False, errors={'name': f'Тег с именем "{form.name.data}" уже существует (ошибка Integrity).'}), 400
         except Exception as e:
@@ -824,12 +827,12 @@ def edit_tag(tag_id):
 def delete_tag(tag_id):
     tag_to_delete = Tag.query.get_or_404(tag_id)
     board = tag_to_delete.board
-    if not current_user.can_edit_board(board): # Или can_delete_board(board)
+    if not current_user.can_edit_board(board): 
         return jsonify(success=False, error="Нет прав для удаления тегов этой доски."), 403
     
     try:
         tag_name = tag_to_delete.name
-        db.session.delete(tag_to_delete) # Связи в card_tags удалятся каскадно (ondelete='CASCADE')
+        db.session.delete(tag_to_delete) 
         db.session.commit()
         return jsonify(success=True, message=f'Тег "{tag_name}" удален.')
     except Exception as e:

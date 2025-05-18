@@ -12,6 +12,38 @@
     </div>
 </div>
 
+<!-- Панель Поиска и Фильтров -->
+<div class="card mb-4" id="filtersPanel">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-12">
+                <label for="searchInput" class="form-label visually-hidden">Поиск по карточкам</label>
+                <input type="search" class="form-control form-control-sm" id="searchInput" placeholder="Поиск по названию и описанию карточек...">
+            </div>
+            <div class="col-md-5">
+                <label for="filterAssignees" class="form-label">Фильтр по исполнителям:</label>
+                <select multiple class="form-select form-select-sm" id="filterAssignees" size="3">
+                    {% for user in board_all_users %}
+                        <option value="{{ user.id }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label for="filterTags" class="form-label">Фильтр по тегам:</label>
+                <select multiple class="form-select form-select-sm" id="filterTags" size="3">
+                    {% for tag_item in board_all_tags %}
+                        <option value="{{ tag_item.id }}">{{ tag_item.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-sm btn-outline-secondary w-100" id="resetFiltersBtn">Сбросить все</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <!-- Управление участниками -->
 {% if is_owner %}
 <div class="card mb-4">
@@ -106,26 +138,29 @@
 <div class="container-fluid px-0">
     <div class="row flex-nowrap overflow-auto pb-3" id="boardColumnsContainer" data-board-id="{{ board.id }}">
         {% for column in columns %}
-        <div class="col-md-4 col-lg-3 column-drag-container">
+        <div class="col-md-4 col-lg-3 column-drag-container" data-column-id-for-sort="{{ column.id }}"> {# Атрибут для сортировки #}
             <div class="card bg-light mb-3 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 me-2 text-truncate" title="{{ column.name }}">{{ column.name }}</h5>
-                    {% if current_user.can_edit_board(board) %}
-                    <div class="d-flex align-items-center">
-                         <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку">✏️</a>
-                         <form action="{{ url_for('delete_column', column_id=column.id) }}" method="post" onsubmit="return confirm('Уверены, что хотите удалить колонку \'{{ column.name }}\'? Все карточки в ней будут удалены!');" class="d-inline">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Удалить колонку">✖</button>
-                        </form>
+                    <h5 class="mb-0 me-2 text-truncate column-title" title="{{ column.name }}">{{ column.name }}</h5>
+                    <div class="column-actions d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary border-0 p-1 me-1 sort-cards-btn" data-sort-by="assignee" data-column-id="{{ column.id }}" title="Сортировать по исполнителю">↕️ И</button>
+                        {% if current_user.can_edit_board(board) %}
+                            <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку">✏️</a>
+                            <form action="{{ url_for('delete_column', column_id=column.id) }}" method="post" onsubmit="return confirm('Уверены, что хотите удалить колонку \'{{ column.name }}\'? Все карточки в ней будут удалены!');" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Удалить колонку">✖</button>
+                            </form>
+                        {% endif %}
                     </div>
-                    {% endif %}
                 </div>
                 <div class="card-body d-flex flex-column">
                     <div class="list-group list-group-flush mb-3 flex-grow-1 card-list" id="column-{{ column.id }}" data-column-id="{{ column.id }}">
                         {% for card in column.cards.all() %}
                         {% set card_assignees_json = [] %}
-                        {% for assignee in card.assignees.all() %}
+                        {% set first_assignee_name = '' %}
+                        {% for assignee in card.assignees.all() %} {# Убрали enumerate #}
                             {% set _ = card_assignees_json.append({'id': assignee.id, 'username': assignee.username, 'avatar_url': assignee.get_avatar()}) %}
+                            {% if loop.first %}{% set first_assignee_name = assignee.username %}{% endif %} {# Используем loop.first #}
                         {% endfor %}
                         {% set card_tags_json = [] %}
                         {% for tag_item in card.tags.all() %}
@@ -141,9 +176,10 @@
                              data-edit-url="{{ url_for('edit_card', card_id=card.id) }}"
                              data-delete-url="{{ url_for('delete_card', card_id=card.id) }}"
                              data-card-assignees='{{ card_assignees_json|tojson }}'
-                             data-card-tags='{{ card_tags_json|tojson }}' {# Передаем теги карточки #}
+                             data-card-tags='{{ card_tags_json|tojson }}'
+                             data-first-assignee-name="{{ first_assignee_name|lower }}" 
                              id="card-{{ card.id }}">
-                            <div class="card-tags-display mb-1"> {# Контейнер для тегов #}
+                            <div class="card-tags-display mb-1"> 
                                 {% for tag_item in card.tags.all() %}
                                 <span class="tag-badge me-1" style="background-color: {{ tag_item.color }}" title="{{ tag_item.name }}"></span>
                                 {% endfor %}
@@ -179,7 +215,7 @@
                         </div>
                          {{ card_form.description(style="display:none;") }}
                          {{ card_form.assignees(style="display:none;") }}
-                         {{ card_form.tags(style="display:none;") }} {# Скрытое поле для тегов, если нужно для не-JS создания #}
+                         {{ card_form.tags(style="display:none;") }} 
                         {{ card_form.submit_card(class="btn btn-sm btn-outline-primary w-100", value="+ Добавить") }}
                          {% if card_form.errors and request.form.get('column_id') == column.id|string %}
                               <div class="mt-2 text-danger small">
@@ -222,13 +258,12 @@
     </div>
 </div>
 
-{# Включаем модальное окно из отдельного файла, передаем tag_form #}
 {% include '_card_modal.html' with context %}
 
 {% endblock %}
 
 {% block scripts %}
-{{ super() }} {# Bootstrap JS #}
+{{ super() }} 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" integrity="sha512-Eezs+g9Lq4TCCq0wae01s9PuNWzHYoCMkE97e2qdkYthpI0pzC3UGB03lgEHn2XM85hDOUF6qgqqszs+iXU4UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="{{ url_for('static', filename='js/board_logic.js') }}"></script> 
 {% endblock %}
