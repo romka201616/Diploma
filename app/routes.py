@@ -34,6 +34,12 @@ def _populate_assignee_choices(form, board):
     choices_for_multiple = [(user.id, user.username) for user in eligible_users]
     if hasattr(form, 'assignees') and isinstance(form.assignees, SelectMultipleField):
         form.assignees.choices = choices_for_multiple
+        # Add avatar data for JS if needed later, though current plan is to build checkboxes from this
+        # for user in eligible_users:
+        #     choice_widget = next((c for c in form.assignees if c.data == user.id), None)
+        #     if choice_widget:
+        #         choice_widget.avatar_url = user.get_avatar()
+
 
 # --- Helper function to populate tag choices ---
 def _populate_tag_choices(form, board):
@@ -502,8 +508,8 @@ def edit_card(card_id):
         return redirect(url_for('view_board', board_id=board.id))
 
     form = CardForm(request.form if request.method == 'POST' else None) 
-    _populate_assignee_choices(form, board)
-    _populate_tag_choices(form, board) 
+    _populate_assignee_choices(form, board) # Populates form.assignees.choices
+    _populate_tag_choices(form, board)      # Populates form.tags.choices
 
     if request.method == 'GET':
         form.title.data = card.title
@@ -512,10 +518,21 @@ def edit_card(card_id):
         form.tags.data = [tag.id for tag in card.tags.all()] 
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest': 
-            assignees_data = [{'id': u.id, 'username': u.username, 'avatar_url': u.get_avatar()} for u in card.assignees.all()]
-            tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in card.tags.all()]
+            current_card_assignees_data = [{'id': u.id, 'username': u.username, 'avatar_url': u.get_avatar()} for u in card.assignees.all()]
+            current_card_tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in card.tags.all()]
             
-            board_tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in board.tags.order_by(Tag.name).all()]
+            all_board_tags_data = [{'id': t.id, 'name': t.name, 'color': t.color} for t in board.tags.order_by(Tag.name).all()]
+            
+            # Prepare full list of eligible assignees for the board (for checkboxes in modal)
+            all_board_assignees_for_modal = []
+            for user_id, username in form.assignees.choices:
+                user_obj = User.query.get(user_id)
+                if user_obj:
+                    all_board_assignees_for_modal.append({
+                        'id': user_obj.id,
+                        'username': user_obj.username,
+                        'avatar_url': user_obj.get_avatar()
+                    })
 
             return jsonify(
                 success=True, 
@@ -523,12 +540,13 @@ def edit_card(card_id):
                     'id': card.id, 
                     'title': card.title, 
                     'description': card.description or "",
-                    'assignees': assignees_data,
+                    'assignees': current_card_assignees_data, # Current assignees of THIS card
                     'assignee_ids': [u.id for u in card.assignees.all()],
-                    'tags': tags_data, 
+                    'tags': current_card_tags_data,          # Current tags of THIS card
                     'tag_ids': [t.id for t in card.tags.all()] 
                 },
-                board_tags=board_tags_data 
+                all_board_assignees=all_board_assignees_for_modal, # All eligible assignees for the board
+                all_board_tags=all_board_tags_data                 # All tags for the board
             )
         else: 
             flash('Для редактирования карточек используется модальное окно.', 'info')
@@ -536,6 +554,8 @@ def edit_card(card_id):
 
 
     if request.method == 'POST':
+        # Form data for assignees and tags will be submitted based on the hidden SelectMultipleFields
+        # which should be updated by JS from the checkboxes.
         if form.validate_on_submit():
             try:
                 card.title = form.title.data

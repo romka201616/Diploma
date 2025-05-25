@@ -1,15 +1,15 @@
 <div class="modal fade" id="cardDetailModal" tabindex="-1" aria-labelledby="cardDetailModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl"> 
-    <div class="modal-content">
+    <div class="modal-content" style="height: calc(100vh - 50px);">
       <div class="modal-header">
         <h5 class="modal-title" id="cardDetailModalLabel">Детали карточки</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <div class="row">
+      <div class="modal-body d-flex flex-column flex-grow-1" style="overflow-y: hidden;">
+        <div class="row flex-grow-1" style="overflow-y: hidden;">
             <!-- Основная информация о карточке и исполнители -->
-            <div class="col-md-7 col-lg-8 border-end"> 
-                <form id="editCardFormModal" method="post" action="">
+            <div class="col-md-7 col-lg-8 border-end d-flex flex-column" style="overflow-y: auto;"> 
+                <form id="editCardFormModal" method="post" action="" class="flex-grow-1 d-flex flex-column">
                     {{ card_form.hidden_tag() }} 
                     <div class="mb-3">
                         {{ card_form.title.label(for="modalCardTitle", class="form-label") }}
@@ -21,33 +21,31 @@
                          {{ card_form.description(class="form-control", id="modalCardDescription", rows=5, maxlength=1000) }}
                          <div class="invalid-feedback" data-field-error="description" id="modalDescriptionError"></div>
                     </div>
+                    
                     <div class="mb-3">
-                        {{ card_form.assignees.label(for="modalCardAssignees", class="form-label") }}
-                        {{ card_form.assignees(class="form-select", id="modalCardAssignees", multiple="multiple", style="min-height: 100px;") }}
-                        <div class="form-text">Удерживайте Ctrl (или Cmd на Mac) для выбора нескольких исполнителей.</div>
-                        <div id="modalSelectedAssigneesPreview" class="mt-2 d-flex flex-wrap align-items-center">
-                            <!-- Аватарки выбранных исполнителей -->
+                        <label class="form-label">Исполнители:</label>
+                        <div id="modalAssigneesCheckboxesContainer" class="filter-options-group p-2 border rounded">
+                            <!-- Checkboxes for assignees will be populated by JS -->
                         </div>
+                        {{ card_form.assignees(id="modalCardAssigneesHiddenSelect", style="display:none;", multiple="multiple") }}
                         <div class="invalid-feedback" data-field-error="assignees" id="modalAssigneesError"></div>
                     </div>
-                     <!-- Поле для выбора тегов карточки -->
+                    
                     <div class="mb-3">
-                        {{ card_form.tags.label(for="modalCardTags", class="form-label") }}
-                        {{ card_form.tags(class="form-select", id="modalCardTags", multiple="multiple", style="min-height: 100px;") }}
-                        <div id="modalSelectedTagsPreview" class="mt-2 d-flex flex-wrap align-items-center">
-                            <!-- Выбранные теги (цвет + имя) будут здесь -->
+                        <label class="form-label">Теги:</label>
+                        <div id="modalTagsCheckboxesContainer" class="filter-options-group p-2 border rounded">
+                            <!-- Checkboxes for tags will be populated by JS -->
                         </div>
+                        {{ card_form.tags(id="modalCardTagsHiddenSelect", style="display:none;", multiple="multiple") }}
                         <div class="invalid-feedback" data-field-error="tags" id="modalTagsError"></div>
                     </div>
                     <input type="submit" name="submit_card" style="display:none;">
                 </form>
-                <hr class="d-md-none"> 
             </div>
 
             <!-- Комментарии и управление тегами доски -->
-            <div class="col-md-5 col-lg-4"> 
-                <div class="accordion" id="modalRightAccordion">
-                    <!-- Аккордеон для Тегов Доски -->
+            <div class="col-md-5 col-lg-4 d-flex flex-column" style="overflow-y: hidden;"> 
+                <div class="accordion accordion-flush" id="modalRightAccordion">
                     <div class="accordion-item">
                         <h2 class="accordion-header" id="headingTags">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTags" aria-expanded="false" aria-controls="collapseTags">
@@ -56,9 +54,9 @@
                         </h2>
                         <div id="collapseTags" class="accordion-collapse collapse" aria-labelledby="headingTags" data-bs-parent="#modalRightAccordion">
                             <div class="accordion-body">
-                                <form id="boardTagFormModal" method="POST" action="" data-current-tag-id=""> {# Изменено ID, добавлен data-атрибут #}
+                                <form id="boardTagFormModal" method="POST" action="" data-current-tag-id="">
                                     {{ tag_form.hidden_tag() }} 
-                                    <h6 id="boardTagFormModalTitle" class="mb-2">Создать новый тег</h6> {# Заголовок для формы тега #}
+                                    <h6 id="boardTagFormModalTitle" class="mb-2">Создать новый тег</h6>
                                     <div class="mb-2">
                                         {{ tag_form.name.label(for="modalTagFormName", class="form-label visually-hidden") }}
                                         {{ tag_form.name(class="form-control form-control-sm", id="modalTagFormName", placeholder="Название тега") }}
@@ -73,7 +71,7 @@
                                         <div class="invalid-feedback" data-field-error="color" id="modalTagFormColorError"></div>
                                     </div>
                                     <div class="d-flex">
-                                        {{ tag_form.submit_tag(class="btn btn-sm btn-outline-success w-100", id="submitBoardTagBtn") }} {# ID кнопки изменен для ясности #}
+                                        {{ tag_form.submit_tag(class="btn btn-sm btn-outline-success w-100", id="submitBoardTagBtn") }}
                                         <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="cancelEditBoardTagBtn" style="display: none;">Отмена</button>
                                     </div>
                                 </form>
@@ -89,35 +87,25 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Аккордеон для Комментариев -->
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="headingComments">
-                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseComments" aria-expanded="true" aria-controls="collapseComments">
-                                Комментарии
-                            </button>
-                        </h2>
-                        <div id="collapseComments" class="accordion-collapse collapse show" aria-labelledby="headingComments" data-bs-parent="#modalRightAccordion">
-                            <div class="accordion-body p-0">
-                                <div id="commentsListContainer" class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
-                                    <div class="text-center p-3" id="commentsLoader">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Загрузка...</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <form id="addCommentFormModal" method="post" action="" class="p-3 border-top">
-                                    {{ comment_form.hidden_tag() }} 
-                                    <div class="mb-2">
-                                        {{ comment_form.text.label(for="modalCommentText", class="form-label visually-hidden") }}
-                                        {{ comment_form.text(class="form-control form-control-sm", id="modalCommentText", rows=3, placeholder="Написать комментарий...") }}
-                                        <div class="invalid-feedback" id="modalCommentTextError"></div>
-                                    </div>
-                                    {{ comment_form.submit_comment(class="btn btn-sm btn-success", id="submitNewCommentBtn") }}
-                                </form>
-                            </div>
+                </div>
+                
+                <h5 class="mt-3 mb-2 pt-2 border-top">Комментарии</h5>
+                <div id="commentsListContainer" class="list-group list-group-flush flex-grow-1" style="overflow-y: auto;">
+                    <div class="text-center p-3" id="commentsLoader">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
                         </div>
                     </div>
                 </div>
+                <form id="addCommentFormModal" method="post" action="" class="p-3 border-top mt-auto">
+                    {{ comment_form.hidden_tag() }} 
+                    <div class="mb-2">
+                        {{ comment_form.text.label(for="modalCommentText", class="form-label visually-hidden") }}
+                        {{ comment_form.text(class="form-control form-control-sm", id="modalCommentText", rows=2, placeholder="Написать комментарий...") }}
+                        <div class="invalid-feedback" id="modalCommentTextError"></div>
+                    </div>
+                    {{ comment_form.submit_comment(class="btn btn-sm btn-success", id="submitNewCommentBtn") }}
+                </form>
             </div>
         </div>
       </div>

@@ -1,8 +1,94 @@
 /* Ваши пользовательские стили могут быть здесь */
-body {
-    padding-bottom: 20px;
-    font-size: 0.95rem; /* Slightly smaller base font for denser UI */
+html, body {
+    height: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll on body if page-board is not full height */
 }
+
+body {
+    padding-bottom: 0; /* Removed default padding */
+    font-size: 0.95rem; 
+    display: flex;
+    flex-direction: column;
+}
+#pageContentArea.page-board { /* Specific to board page */
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Key for controlling scroll within this area */
+    padding-top: 0; /* Remove container padding if header is part of it */
+    padding-bottom: 0;
+}
+nav.navbar { /* Ensure navbar doesn't cause overflow or unwanted scroll */
+    flex-shrink: 0;
+    position: sticky; /* Or fixed-top if preferred */
+    top: 0;
+    z-index: 1030; /* Bootstrap's standard for navbars */
+    width: 100%;
+}
+
+.board-controls-header {
+    flex-shrink: 0; /* This part should not grow or shrink, fixed height */
+    background-color: #f8f9fa; /* Or any color to distinguish */
+    z-index: 1020; /* Below navbar but above columns */
+}
+
+.board-columns-wrapper {
+    display: flex;
+    flex-direction: row;
+    flex-grow: 1; /* Takes remaining vertical space */
+    overflow-x: auto;  /* Horizontal scroll for columns */
+    overflow-y: hidden; /* No vertical scroll for the wrapper itself */
+    padding: 1rem; /* Add some padding around the columns area */
+    align-items: stretch; /* Make columns stretch to the same height if needed */
+}
+
+.col-custom { /* Replaces Bootstrap col-* for specific width */
+    width: 18%;
+    min-width: 280px; /* Minimum width for usability */
+    max-width: 320px; /* Maximum width */
+    padding-left: 8px;
+    padding-right: 8px;
+    flex-shrink: 0; /* Prevent columns from shrinking */
+}
+.column-card { /* The .card element representing a column */
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Fill the height allocated by .board-columns-wrapper's align-items */
+}
+.column-header-sticky {
+    position: sticky;
+    top: 0; /* Sticks to the top of its scrolling container (.column-body-scrollable) */
+    background-color: inherit; /* Inherit from .card bg-light */
+    z-index: 10; /* Above cards in the list */
+    border-bottom: 1px solid #dee2e6; /* Separator */
+}
+
+.column-body-scrollable { /* The card-body containing the card-list and add-card-form */
+    flex-grow: 1;
+    overflow-y: hidden; /* Important: this itself doesn't scroll */
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem;
+}
+.card-list {
+    flex-grow: 1;
+    overflow-y: auto; /* INDIVIDUAL vertical scroll for cards in this column */
+    padding: 0 0.5rem; /* Padding inside the scrollable list */
+    margin-bottom: 0 !important; /* Override Bootstrap's mb-3 on list-group */
+}
+.add-card-form {
+    flex-shrink: 0; /* Form at the bottom does not shrink */
+    padding-top: 0.5rem;
+    /* border-top: 1px solid #dee2e6; */
+}
+.card-assignee-avatar {
+    width: 24px;
+    height: 24px;
+    object-fit: cover;
+    margin-right: -8px;
+    border: 1px solid white;
+}
+
 
 .card-item-clickable {
     cursor: pointer;
@@ -75,7 +161,7 @@ body {
 
 /* Стили для панели фильтров на странице доски */
 #filtersCollapseArea .card {
-    background-color: #f8f9fa; /* Light background for filter panel */
+    background-color: #f0f3f5; /* Light background for filter panel */
 }
 #filtersCollapseArea .form-label {
     font-size: 0.875rem;
@@ -92,31 +178,46 @@ body {
 }
 .filter-options-group .form-check-label {
     cursor: pointer;
+    display: flex; /* Align avatar and text nicely */
+    align-items: center;
 }
 
 
 /* Стили для кнопок сортировки в заголовках колонок */
 .column-header .sort-cards-btn {
-    /* Можно добавить стили, если иконки текстовые */
 }
 .column-header .sort-cards-btn.active-sort-asc::after {
-    content: " ▲"; /* Стрелка вверх */
+    content: " ▲"; 
     font-size: 0.8em;
 }
 .column-header .sort-cards-btn.active-sort-desc::after {
-    content: " ▼"; /* Стрелка вниз */
+    content: " ▼"; 
     font-size: 0.8em;
 }
-.column-actions { /* Контейнер для всех действий в заголовке колонки */
-    white-space: nowrap; /* Предотвращает перенос кнопок */
+.column-actions { 
+    white-space: nowrap; 
 }
 .column-title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: calc(100% - 120px); /* Оставляем место для кнопок, подбирать по факту */
+    max-width: calc(100% - 100px); /* Adjust based on actual button sizes */
 }
 
 .board-title {
-    font-size: 1.75rem; /* Slightly smaller h1 */
+    font-size: 1.5rem; 
+}
+
+/* Modal specific styles for comments section */
+.modal-body .col-md-5.d-flex.flex-column {
+    max-height: calc(100vh - 180px); /* approx modal header/footer/other elements */
+}
+
+#commentsListContainer {
+    min-height: 100px; /* Ensure it has some base height */
+}
+
+/* Ensure hidden select fields in modal don't take up space */
+#modalCardAssigneesHiddenSelect, #modalCardTagsHiddenSelect {
+    display: none !important;
 }
