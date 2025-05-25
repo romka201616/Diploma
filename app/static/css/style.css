@@ -1,85 +1,118 @@
 /* Ваши пользовательские стили могут быть здесь */
 html, body {
     height: 100%;
-    overflow-x: hidden; /* Prevent horizontal scroll on body if page-board is not full height */
+    overflow-x: hidden; 
 }
 
 body {
-    padding-bottom: 0; /* Removed default padding */
+    padding-bottom: 0; 
     font-size: 0.95rem; 
     display: flex;
     flex-direction: column;
+    min-height: 100vh; /* Ensure body takes at least full viewport height */
 }
-#pageContentArea.page-board { /* Specific to board page */
+#pageContentArea {
     flex-grow: 1;
+    display: flex; /* Default for most pages */
+    flex-direction: column; /* Default for most pages */
+}
+
+#pageContentArea.page-board { 
+    overflow: hidden; 
+    padding-top: 0; 
+    padding-bottom: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Key for controlling scroll within this area */
-    padding-top: 0; /* Remove container padding if header is part of it */
-    padding-bottom: 0;
 }
-nav.navbar { /* Ensure navbar doesn't cause overflow or unwanted scroll */
+nav.navbar { 
     flex-shrink: 0;
-    position: sticky; /* Or fixed-top if preferred */
+    position: sticky; 
     top: 0;
-    z-index: 1030; /* Bootstrap's standard for navbars */
+    z-index: 1030; 
     width: 100%;
 }
 
 .board-controls-header {
-    flex-shrink: 0; /* This part should not grow or shrink, fixed height */
-    background-color: #f8f9fa; /* Or any color to distinguish */
-    z-index: 1020; /* Below navbar but above columns */
+    flex-shrink: 0; 
+    background-color: #f8f9fa; 
+    z-index: 1020; 
 }
 
 .board-columns-wrapper {
     display: flex;
     flex-direction: row;
-    flex-grow: 1; /* Takes remaining vertical space */
-    overflow-x: auto;  /* Horizontal scroll for columns */
-    overflow-y: hidden; /* No vertical scroll for the wrapper itself */
-    padding: 1rem; /* Add some padding around the columns area */
-    align-items: stretch; /* Make columns stretch to the same height if needed */
+    flex-grow: 1; 
+    overflow-x: auto;  
+    overflow-y: hidden; 
+    padding: 1rem 0.5rem; /* Reduced horizontal padding slightly */
+    align-items: stretch; 
+    scrollbar-width: thin; /* For Firefox */
+    scrollbar-color: #adb5bd #f8f9fa; /* For Firefox */
+}
+.board-columns-wrapper::-webkit-scrollbar { /* For Chrome, Safari, Edge */
+    height: 8px;
+}
+.board-columns-wrapper::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+.board-columns-wrapper::-webkit-scrollbar-thumb {
+    background-color: #adb5bd;
+    border-radius: 4px;
+    border: 2px solid #f8f9fa;
 }
 
-.col-custom { /* Replaces Bootstrap col-* for specific width */
+
+.col-custom { 
     width: 18%;
-    min-width: 280px; /* Minimum width for usability */
-    max-width: 320px; /* Maximum width */
+    min-width: 260px; 
+    max-width: 300px; 
     padding-left: 8px;
     padding-right: 8px;
-    flex-shrink: 0; /* Prevent columns from shrinking */
+    flex-shrink: 0; 
+    display: flex; /* To make column-card take full height */
+    flex-direction: column; /* To make column-card take full height */
 }
-.column-card { /* The .card element representing a column */
+.column-card { 
     display: flex;
     flex-direction: column;
-    height: 100%; /* Fill the height allocated by .board-columns-wrapper's align-items */
+    height: 100%; 
+    width: 100%; /* Ensure card takes full width of col-custom */
 }
 .column-header-sticky {
     position: sticky;
-    top: 0; /* Sticks to the top of its scrolling container (.column-body-scrollable) */
-    background-color: inherit; /* Inherit from .card bg-light */
-    z-index: 10; /* Above cards in the list */
-    border-bottom: 1px solid #dee2e6; /* Separator */
+    top: 0; 
+    background-color: inherit; 
+    z-index: 10; 
+    border-bottom: 1px solid #dee2e6; 
+    flex-shrink: 0;
 }
 
-.column-body-scrollable { /* The card-body containing the card-list and add-card-form */
+.column-body-scrollable { 
     flex-grow: 1;
-    overflow-y: hidden; /* Important: this itself doesn't scroll */
+    overflow-y: hidden; 
     display: flex;
     flex-direction: column;
     padding: 0.5rem;
 }
 .card-list {
     flex-grow: 1;
-    overflow-y: auto; /* INDIVIDUAL vertical scroll for cards in this column */
-    padding: 0 0.5rem; /* Padding inside the scrollable list */
-    margin-bottom: 0 !important; /* Override Bootstrap's mb-3 on list-group */
+    overflow-y: auto; 
+    padding: 0 0.25rem; 
+    margin-bottom: 0 !important; 
+    scrollbar-width: thin;
+    scrollbar-color: #ced4da #e9ecef;
 }
+.card-list::-webkit-scrollbar {
+    width: 6px;
+}
+.card-list::-webkit-scrollbar-thumb {
+    background-color: #ced4da;
+    border-radius: 3px;
+}
+
 .add-card-form {
-    flex-shrink: 0; /* Form at the bottom does not shrink */
+    flex-shrink: 0; 
     padding-top: 0.5rem;
-    /* border-top: 1px solid #dee2e6; */
 }
 .card-assignee-avatar {
     width: 24px;
@@ -159,9 +192,8 @@ nav.navbar { /* Ensure navbar doesn't cause overflow or unwanted scroll */
     padding: .25rem .5rem;
 }
 
-/* Стили для панели фильтров на странице доски */
 #filtersCollapseArea .card {
-    background-color: #f0f3f5; /* Light background for filter panel */
+    background-color: #f0f3f5; 
 }
 #filtersCollapseArea .form-label {
     font-size: 0.875rem;
@@ -169,7 +201,7 @@ nav.navbar { /* Ensure navbar doesn't cause overflow or unwanted scroll */
     font-weight: 500;
 }
 .filter-options-group {
-    max-height: 150px; /* Limit height and make scrollable if many options */
+    max-height: 150px; 
     overflow-y: auto;
     font-size: 0.875rem;
 }
@@ -178,12 +210,11 @@ nav.navbar { /* Ensure navbar doesn't cause overflow or unwanted scroll */
 }
 .filter-options-group .form-check-label {
     cursor: pointer;
-    display: flex; /* Align avatar and text nicely */
+    display: flex; 
     align-items: center;
 }
 
 
-/* Стили для кнопок сортировки в заголовках колонок */
 .column-header .sort-cards-btn {
 }
 .column-header .sort-cards-btn.active-sort-asc::after {
@@ -201,23 +232,78 @@ nav.navbar { /* Ensure navbar doesn't cause overflow or unwanted scroll */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: calc(100% - 100px); /* Adjust based on actual button sizes */
+    max-width: calc(100% - 100px); 
 }
 
 .board-title {
     font-size: 1.5rem; 
 }
 
-/* Modal specific styles for comments section */
-.modal-body .col-md-5.d-flex.flex-column {
-    max-height: calc(100vh - 180px); /* approx modal header/footer/other elements */
+/* Modal specific styles */
+.modal-dialog.modal-xl .modal-content {
+    height: calc(100vh - 80px); /* Ensure it fits viewport */
+    max-height: 90vh; /* Absolute max height */
+    display: flex;
+    flex-direction: column;
+}
+.modal-dialog.modal-xl .modal-header,
+.modal-dialog.modal-xl .modal-footer {
+    flex-shrink: 0;
+}
+.modal-dialog.modal-xl .modal-body {
+    flex-grow: 1;
+    overflow: hidden; /* IMPORTANT: Body itself does not scroll */
+    display: flex;
+    padding: 1rem; 
+}
+.modal-dialog.modal-xl .modal-body > .row {
+    flex-grow: 1;
+    overflow: hidden; /* Row itself should not scroll */
+    margin-left: 0; 
+    margin-right: 0;
+    height: 100%; /* Make row take full height of modal-body */
 }
 
-#commentsListContainer {
-    min-height: 100px; /* Ensure it has some base height */
+.modal-main-content { /* Left column (form) */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden; /* This part does not scroll itself */
+}
+.modal-main-content #editCardFormModal {
+    flex-grow: 1; /* Form takes available space */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Form itself does not scroll */
+}
+.modal-main-content #editCardFormModal > .flex-grow-1 { /* Inner div that scrolls */
+    overflow-y: auto;
+    padding-right: 10px; /* For scrollbar */
 }
 
-/* Ensure hidden select fields in modal don't take up space */
+.modal-sidebar-content { /* Right column (tags, comments) */
+    display: flex;
+    flex-direction: column;
+    height: 100%; 
+    overflow: hidden; /* This part does not scroll itself */
+}
+.modal-sidebar-content .accordion { 
+    flex-shrink: 0;
+}
+.modal-sidebar-content > h5 { /* "Комментарии" title */
+    flex-shrink: 0;
+}
+.modal-sidebar-content #commentsListContainer { 
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 100px; 
+    border-bottom: 1px solid #dee2e6; /* Add border if form is directly below */
+}
+.modal-sidebar-content #addCommentFormModal { 
+    flex-shrink: 0;
+    padding-top: 0.75rem; /* Add some padding to separate from list */
+}
+
 #modalCardAssigneesHiddenSelect, #modalCardTagsHiddenSelect {
     display: none !important;
 }

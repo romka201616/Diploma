@@ -100,9 +100,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     modalForm.action = `/cards/${currentCardId}/edit`;
                     deleteForm.action = `/cards/${currentCardId}/delete`;
                     
-                    // Populate assignees checkboxes
                     if (modalAssigneesCheckboxesContainer && data.all_board_assignees) {
-                        modalAssigneesCheckboxesContainer.innerHTML = ''; // Clear previous
+                        modalAssigneesCheckboxesContainer.innerHTML = ''; 
                         data.all_board_assignees.forEach(user => {
                             const isChecked = cardData.assignee_ids.includes(parseInt(user.id));
                             const div = document.createElement('div');
@@ -118,9 +117,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                     }
 
-                    // Populate tags checkboxes
                     if (modalTagsCheckboxesContainer && data.all_board_tags) {
-                        modalTagsCheckboxesContainer.innerHTML = ''; // Clear previous
+                        modalTagsCheckboxesContainer.innerHTML = ''; 
                         data.all_board_tags.forEach(tag => {
                             const isChecked = cardData.tag_ids.includes(parseInt(tag.id));
                             const div = document.createElement('div');
@@ -185,6 +183,16 @@ document.addEventListener('DOMContentLoaded', function () {
             if (boardTagsListModal) boardTagsListModal.innerHTML = ''; 
             resetBoardTagForm();
 
+            // Reset save button state if it was changed
+            if (saveButton.dataset.originalText) {
+                saveButton.textContent = saveButton.dataset.originalText;
+                saveButton.classList.remove('btn-success');
+                saveButton.classList.add('btn-primary');
+                saveButton.disabled = false;
+                delete saveButton.dataset.originalText;
+            }
+
+
             if (currentBoardId) {
                 const boardUrl = `/boards/${currentBoardId}`;
                 history.pushState({boardId: currentBoardId}, `Доска ${currentBoardId}`, boardUrl);
@@ -192,21 +200,38 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         saveButton.addEventListener('click', function() {
-            // Sync checkboxes to hidden select fields before creating FormData
             if (hiddenModalAssigneesSelect) {
-                Array.from(hiddenModalAssigneesSelect.options).forEach(opt => opt.selected = false); // Deselect all
-                document.querySelectorAll('.modal-assignee-checkbox:checked').forEach(cb => {
-                    const option = hiddenModalAssigneesSelect.querySelector(`option[value="${cb.value}"]`);
-                    if (option) option.selected = true;
+                // Clear previous selections from hidden select
+                Array.from(hiddenModalAssigneesSelect.options).forEach(opt => opt.selected = false);
+                // Create options if they don't exist and select based on checkboxes
+                document.querySelectorAll('.modal-assignee-checkbox').forEach(cb => {
+                    let option = hiddenModalAssigneesSelect.querySelector(`option[value="${cb.value}"]`);
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = cb.value;
+                        // option.textContent = cb.nextElementSibling.textContent.trim(); // Optional: for debugging
+                        hiddenModalAssigneesSelect.appendChild(option);
+                    }
+                    if (cb.checked) {
+                        option.selected = true;
+                    }
                 });
             }
             if (hiddenModalTagsSelect) {
-                Array.from(hiddenModalTagsSelect.options).forEach(opt => opt.selected = false); // Deselect all
-                document.querySelectorAll('.modal-tag-checkbox:checked').forEach(cb => {
-                    const option = hiddenModalTagsSelect.querySelector(`option[value="${cb.value}"]`);
-                    if (option) option.selected = true;
+                Array.from(hiddenModalTagsSelect.options).forEach(opt => opt.selected = false);
+                document.querySelectorAll('.modal-tag-checkbox').forEach(cb => {
+                     let option = hiddenModalTagsSelect.querySelector(`option[value="${cb.value}"]`);
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = cb.value;
+                        hiddenModalTagsSelect.appendChild(option);
+                    }
+                    if (cb.checked) {
+                        option.selected = true;
+                    }
                 });
             }
+
 
             let formCsrf = modalForm.querySelector('input[name="csrf_token"]');
             if (!formCsrf || !formCsrf.value) {
@@ -224,25 +249,49 @@ document.addEventListener('DOMContentLoaded', function () {
                  }
             }
 
+            const originalButtonText = saveButton.textContent;
+            saveButton.dataset.originalText = originalButtonText; // Store for later
+            saveButton.textContent = 'Сохранение...';
+            saveButton.disabled = true;
+
+
             fetch(modalForm.action, {
                 method: 'POST',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: new FormData(modalForm) // FormData will now pick up selections from hidden selects
+                body: new FormData(modalForm) 
             })
             .then(response => response.json().then(data => ({ status: response.status, body: data })))
             .then(({ status, body }) => {
                 if (status === 200 && body.success) {
                     updateCardDisplay(body.card); 
                     applyFiltersAndSort(); 
+
+                    saveButton.textContent = 'Сохранено!';
+                    saveButton.classList.remove('btn-primary');
+                    saveButton.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                        saveButton.textContent = originalButtonText;
+                        saveButton.classList.remove('btn-success');
+                        saveButton.classList.add('btn-primary');
+                        saveButton.disabled = false;
+                    }, 2000);
+
                 } else if (status === 400 && !body.success && body.errors) {
                     displayModalErrors(body.errors, modalForm);
+                    saveButton.textContent = originalButtonText; // Revert on error
+                    saveButton.disabled = false;
                 } else {
                     alert('Ошибка сохранения деталей карточки: ' + (body.error || body.message || 'Неизвестная ошибка сервера.'));
+                    saveButton.textContent = originalButtonText; // Revert on error
+                    saveButton.disabled = false;
                 }
             })
             .catch(error => {
                 console.error('Error saving card details via modal:', error);
                 alert('Произошла сетевая ошибка при сохранении деталей карточки.');
+                saveButton.textContent = originalButtonText; // Revert on error
+                saveButton.disabled = false;
             });
         });
         
@@ -308,10 +357,9 @@ document.addEventListener('DOMContentLoaded', function () {
                                   || `modalTagForm${field.charAt(0).toUpperCase() + field.slice(1)}Error`; 
                 let errorFeedbackElement = targetForm.querySelector(`.invalid-feedback[data-field-error="${field}"]`) || document.getElementById(errorElementId);
         
-                if (inputElement && !inputElement.type?.includes('select')) { // Don't mark hidden selects
+                if (inputElement && !inputElement.type?.includes('select')) { 
                     inputElement.classList.add('is-invalid');
                 }
-                 // For custom checkbox groups, find the container or a general error spot
                 if ((field === 'assignees' || field === 'tags') && !errorFeedbackElement) {
                     errorFeedbackElement = (field === 'assignees') ? 
                                            document.getElementById('modalAssigneesError') : 
@@ -411,7 +459,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!cardIdToFetch || !commentsListContainer) return;
             if (commentsLoader) commentsLoader.style.display = 'block';
             commentsListContainer.innerHTML = ''; 
-            commentsListContainer.appendChild(commentsLoader);
+            if (commentsLoader) commentsListContainer.appendChild(commentsLoader); // Re-add loader if cleared
 
             fetch(`/cards/${cardIdToFetch}/comments`)
                 .then(response => response.json())
@@ -778,13 +826,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if ((status === 201 || status === 200) && bodyData.success && bodyData.tag) {
                         resetBoardTagForm(); 
-                        await fetchBoardTags(currentBoardId); // Re-fetch and render list of board tags
+                        await fetchBoardTags(currentBoardId); 
                         
-                        // Update the checkboxes for tags in the modal if they are visible
                         const cardEditResponse = await fetch(`/cards/${currentCardId}/edit`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
                         const cardEditData = await cardEditResponse.json();
                         if (cardEditData.success && modalTagsCheckboxesContainer && cardEditData.all_board_tags) {
-                            modalTagsCheckboxesContainer.innerHTML = ''; // Clear previous
+                            modalTagsCheckboxesContainer.innerHTML = ''; 
                             const currentCardSelectedTagIds = cardEditData.card.tag_ids || [];
                             cardEditData.all_board_tags.forEach(tag => {
                                 const isChecked = currentCardSelectedTagIds.includes(parseInt(tag.id));
@@ -859,7 +906,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (response.ok && body.success) {
                             await fetchBoardTags(currentBoardId); 
                            
-                            // Update the checkboxes for tags in the modal if they are visible
                             const cardEditResponse = await fetch(`/cards/${currentCardId}/edit`, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
                             const cardEditData = await cardEditResponse.json();
                             if (cardEditData.success && modalTagsCheckboxesContainer && cardEditData.all_board_tags) {

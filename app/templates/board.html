@@ -84,7 +84,8 @@
             <div class="card-header d-flex justify-content-between align-items-center column-header-sticky">
                 <h5 class="mb-0 me-2 text-truncate column-title" title="{{ column.name }}">{{ column.name }}</h5>
                 <div class="column-actions d-flex align-items-center">
-                    <button class="btn btn-sm btn-outline-secondary border-0 p-1 me-1 sort-cards-btn" data-sort-by="assignee" data-column-id="{{ column.id }}" title="Сортировать по исполнителю">↕️ И</button>
+                    <!-- Кнопка сортировки по исполнителю скрыта -->
+                    <!-- <button class="btn btn-sm btn-outline-secondary border-0 p-1 me-1 sort-cards-btn" data-sort-by="assignee" data-column-id="{{ column.id }}" title="Сортировать по исполнителю">↕️ И</button> -->
                     {% if current_user.can_edit_board(board) %}
                         <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку"><i class="bi bi-pencil-square"></i></a>
                         <form action="{{ url_for('delete_column', column_id=column.id) }}" method="post" onsubmit="return confirm('Уверены, что хотите удалить колонку \'{{ column.name }}\'? Все карточки в ней будут удалены!');" class="d-inline">
@@ -176,11 +177,14 @@
 
     {% if current_user.can_edit_board(board) %}
     <div class="col-custom column-drag-container">
-        <div class="card bg-light h-100">
-            <div class="card-body d-flex align-items-center justify-content-center">
+        <div class="card bg-light h-100 column-card">
+            <div class="card-header column-header-sticky">
+                 <h5 class="mb-0 text-truncate column-title">Новая колонка</h5>
+            </div>
+            <div class="card-body d-flex flex-column p-3 column-body-scrollable align-items-start"> {# align-items-start to push content to top #}
                 <form action="{{ url_for('view_board', board_id=board.id) }}" method="post" novalidate class="w-100">
                     {{ column_form.hidden_tag() }}
-                     <div class="mb-2">
+                    <div class="mb-2">
                         {{ column_form.name.label(class="form-label visually-hidden") }}
                         {{ column_form.name(class="form-control form-control-sm" + (" is-invalid" if column_form.name.errors else ""), placeholder="Название новой колонки") }}
                         {% if column_form.name.errors %}
