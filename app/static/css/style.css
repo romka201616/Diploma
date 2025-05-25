@@ -1,6 +1,7 @@
 /* Ваши пользовательские стили могут быть здесь */
 body {
     padding-bottom: 20px;
+    font-size: 0.95rem; /* Slightly smaller base font for denser UI */
 }
 
 .card-item-clickable {
@@ -72,14 +73,27 @@ body {
     padding: .25rem .5rem;
 }
 
-/* Стили для панели фильтров */
-#filtersPanel .form-label {
+/* Стили для панели фильтров на странице доски */
+#filtersCollapseArea .card {
+    background-color: #f8f9fa; /* Light background for filter panel */
+}
+#filtersCollapseArea .form-label {
     font-size: 0.875rem;
     margin-bottom: 0.25rem;
+    font-weight: 500;
 }
-#filtersPanel .form-select-sm, #filtersPanel .form-control-sm {
+.filter-options-group {
+    max-height: 150px; /* Limit height and make scrollable if many options */
+    overflow-y: auto;
     font-size: 0.875rem;
 }
+.filter-options-group .form-check {
+    margin-bottom: 0.3rem;
+}
+.filter-options-group .form-check-label {
+    cursor: pointer;
+}
+
 
 /* Стили для кнопок сортировки в заголовках колонок */
 .column-header .sort-cards-btn {
@@ -100,5 +114,9 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: calc(100% - 100px); /* Оставляем место для кнопок, подбирать по факту */
+    max-width: calc(100% - 120px); /* Оставляем место для кнопок, подбирать по факту */
+}
+
+.board-title {
+    font-size: 1.75rem; /* Slightly smaller h1 */
 }

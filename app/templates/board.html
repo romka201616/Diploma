@@ -1,154 +1,99 @@
 {% extends "base.html" %}
+
+{% block page_container_class %}container-fluid{% endblock %}
+
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>{{ board.name }} <small class="text-muted fs-6">(Владелец: {{ board.owner.username }})</small></h1>
+<div class="d-flex justify-content-between align-items-center mb-3 px-md-3">
+    <h2 class="board-title">{{ board.name }}</h2>
     <div> 
         {% if current_user.can_delete_board(board) %}
-        <a href="{{ url_for('edit_board', board_id=board.id) }}" class="btn btn-outline-secondary me-2">Настройки доски</a>
+        <a href="{{ url_for('edit_board', board_id=board.id) }}" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-sliders"></i> Настройки доски и участники
+        </a>
         {% endif %}
-        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Назад к списку досок</a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left-circle"></i> Назад к списку досок
+        </a>
     </div>
 </div>
 
-<!-- Панель Поиска и Фильтров -->
-<div class="card mb-4" id="filtersPanel">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-12">
-                <label for="searchInput" class="form-label visually-hidden">Поиск по карточкам</label>
-                <input type="search" class="form-control form-control-sm" id="searchInput" placeholder="Поиск по названию и описанию карточек...">
+<!-- Кнопка для показа/скрытия фильтров -->
+<div class="mb-3 px-md-3">
+    <button class="btn btn-outline-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapseArea" aria-expanded="false" aria-controls="filtersCollapseArea">
+        <i class="bi bi-funnel"></i> Показать/Скрыть Фильтры
+    </button>
+</div>
+
+<!-- Панель Поиска и Фильтров (скрываемая) -->
+<div class="collapse mb-4 px-md-3" id="filtersCollapseArea">
+    <div class="card">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-12 mb-2">
+                    <label for="searchInput" class="form-label visually-hidden">Поиск по карточкам</label>
+                    <input type="search" class="form-control form-control-sm" id="searchInput" placeholder="Поиск по названию и описанию карточек...">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Фильтр по исполнителям:</label>
+                    <div class="filter-options-group p-2 border rounded" id="filterAssigneesList">
+                        {% if board_all_users %}
+                            {% for user in board_all_users %}
+                            <div class="form-check">
+                                <input class="form-check-input filter-checkbox" type="checkbox" value="{{ user.id }}" id="filter_user_{{ user.id }}" data-filter-group="assignees">
+                                <label class="form-check-label" for="filter_user_{{ user.id }}">
+                                    <img src="{{ user.get_avatar() }}" alt="{{ user.username }}" class="rounded-circle me-1" style="width: 20px; height: 20px; object-fit: cover;">
+                                    {{ user.username }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <small class="text-muted">Нет доступных исполнителей для фильтрации.</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Фильтр по тегам:</label>
+                    <div class="filter-options-group p-2 border rounded" id="filterTagsList">
+                        {% if board_all_tags %}
+                            {% for tag_item in board_all_tags %}
+                            <div class="form-check">
+                                <input class="form-check-input filter-checkbox" type="checkbox" value="{{ tag_item.id }}" id="filter_tag_{{ tag_item.id }}" data-filter-group="tags">
+                                <label class="form-check-label" for="filter_tag_{{ tag_item.id }}">
+                                    <span class="tag-color-preview me-1" style="background-color: {{ tag_item.color }};"></span>
+                                    {{ tag_item.name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <small class="text-muted">Нет доступных тегов для фильтрации.</small>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-            <div class="col-md-5">
-                <label for="filterAssignees" class="form-label">Фильтр по исполнителям:</label>
-                <select multiple class="form-select form-select-sm" id="filterAssignees" size="3">
-                    {% for user in board_all_users %}
-                        <option value="{{ user.id }}">{{ user.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-5">
-                <label for="filterTags" class="form-label">Фильтр по тегам:</label>
-                <select multiple class="form-select form-select-sm" id="filterTags" size="3">
-                    {% for tag_item in board_all_tags %}
-                        <option value="{{ tag_item.id }}">{{ tag_item.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-sm btn-outline-secondary w-100" id="resetFiltersBtn">Сбросить все</button>
+            <div class="mt-3 text-end">
+                <button class="btn btn-sm btn-outline-secondary" id="resetFiltersBtn"><i class="bi bi-arrow-counterclockwise"></i> Сбросить все фильтры</button>
             </div>
         </div>
     </div>
 </div>
-
-
-<!-- Управление участниками -->
-{% if is_owner %}
-<div class="card mb-4">
-    <div class="card-header">
-        Управление участниками
-    </div>
-    <div class="card-body">
-        <h5>Пригласить пользователя</h5>
-        <form action="{{ url_for('invite_to_board', board_id=board.id) }}" method="post" novalidate class="row g-3 align-items-end">
-            {{ invite_form.hidden_tag() }}
-            <div class="col-md-6">
-                {{ invite_form.email_or_username.label(class="form-label") }}
-                {{ invite_form.email_or_username(class="form-control form-control-sm" + (" is-invalid" if invite_form.email_or_username.errors else "")) }}
-                {% if invite_form.email_or_username.errors %}
-                    <div class="invalid-feedback d-block">
-                        {% for error in invite_form.email_or_username.errors %}<span>{{ error }}</span><br>{% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-            <div class="col-auto">
-                {{ invite_form.submit_invite(class="btn btn-sm btn-success") }}
-            </div>
-        </form>
-        <hr>
-        <h5>Текущие участники и владелец:</h5>
-         <ul class="list-group list-group-flush">
-             <li class="list-group-item d-flex justify-content-between align-items-center">
-                <img src="{{ board.owner.get_avatar() }}" alt="Аватар {{ board.owner.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ board.owner.username }}">
-                {{ board.owner.username }} ({{ board.owner.email }})
-                <span class="badge bg-primary">Владелец</span>
-             </li>
-            {% set owner_id = board.owner.id %}
-            {% for member in board_members %}
-                {% if member.id != owner_id %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <img src="{{ member.get_avatar() }}" alt="Аватар {{ member.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ member.username }}">
-                        {{ member.username }} ({{ member.email }})
-                    </div>
-                    <form action="{{ url_for('remove_from_board', board_id=board.id, user_id=member.id) }}" method="post" onsubmit="return confirm('Удалить {{ member.username }} с этой доски?');" class="d-inline">
-                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-sm btn-outline-warning">Удалить</button>
-                    </form>
-                </li>
-                {% endif %}
-            {% endfor %}
-            {% if not board_members or (board_members|length == 1 and board_members[0].id == owner_id and board_members[0] == board.owner) %}
-                 <li class="list-group-item text-muted">Других участников нет.</li>
-            {% endif %}
-        </ul>
-    </div>
-</div>
-{% elif board_members or board.owner %} 
-    <div class="card mb-4">
-        <div class="card-header">
-            Участники доски
-        </div>
-         <div class="card-body">
-            <ul class="list-group list-group-flush">
-                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <img src="{{ board.owner.get_avatar() }}" alt="Аватар {{ board.owner.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ board.owner.username }}">
-                        {{ board.owner.username }}
-                    </div>
-                    <span class="badge bg-primary">Владелец</span>
-                 </li>
-                 {% set owner_id = board.owner.id %}
-                 {% for member in board_members %}
-                      {% if member.id != owner_id %}
-                      <li class="list-group-item d-flex justify-content-between align-items-center">
-                          <div>
-                            <img src="{{ member.get_avatar() }}" alt="Аватар {{ member.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ member.username }}">
-                            {{ member.username }}
-                          </div>
-                          {% if member == current_user %}
-                              <form action="{{ url_for('remove_from_board', board_id=board.id, user_id=member.id) }}" method="post" onsubmit="return confirm('Покинуть доску {{ board.name }}?');" class="d-inline">
-                                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                  <button type="submit" class="btn btn-sm btn-outline-warning">Покинуть доску</button>
-                              </form>
-                          {% else %}
-                             <span class="badge bg-secondary">Участник</span>
-                          {% endif %}
-                      </li>
-                      {% endif %}
-                 {% endfor %}
-            </ul>
-        </div>
-    </div>
-{% endif %}
 
 
 <div class="container-fluid px-0">
     <div class="row flex-nowrap overflow-auto pb-3" id="boardColumnsContainer" data-board-id="{{ board.id }}">
         {% for column in columns %}
-        <div class="col-md-4 col-lg-3 column-drag-container" data-column-id-for-sort="{{ column.id }}"> {# Атрибут для сортировки #}
+        <div class="col-md-4 col-lg-3 column-drag-container" data-column-id-for-sort="{{ column.id }}">
             <div class="card bg-light mb-3 h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 me-2 text-truncate column-title" title="{{ column.name }}">{{ column.name }}</h5>
                     <div class="column-actions d-flex align-items-center">
                         <button class="btn btn-sm btn-outline-secondary border-0 p-1 me-1 sort-cards-btn" data-sort-by="assignee" data-column-id="{{ column.id }}" title="Сортировать по исполнителю">↕️ И</button>
                         {% if current_user.can_edit_board(board) %}
-                            <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку">✏️</a>
+                            <a href="{{ url_for('edit_column', column_id=column.id) }}" class="btn btn-sm btn-outline-secondary border-0 p-1 me-1" title="Редактировать колонку"><i class="bi bi-pencil-square"></i></a>
                             <form action="{{ url_for('delete_column', column_id=column.id) }}" method="post" onsubmit="return confirm('Уверены, что хотите удалить колонку \'{{ column.name }}\'? Все карточки в ней будут удалены!');" class="d-inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Удалить колонку">✖</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Удалить колонку"><i class="bi bi-trash"></i></button>
                             </form>
                         {% endif %}
                     </div>
@@ -158,9 +103,9 @@
                         {% for card in column.cards.all() %}
                         {% set card_assignees_json = [] %}
                         {% set first_assignee_name = '' %}
-                        {% for assignee in card.assignees.all() %} {# Убрали enumerate #}
+                        {% for assignee in card.assignees.all() %}
                             {% set _ = card_assignees_json.append({'id': assignee.id, 'username': assignee.username, 'avatar_url': assignee.get_avatar()}) %}
-                            {% if loop.first %}{% set first_assignee_name = assignee.username %}{% endif %} {# Используем loop.first #}
+                            {% if loop.first %}{% set first_assignee_name = assignee.username %}{% endif %}
                         {% endfor %}
                         {% set card_tags_json = [] %}
                         {% for tag_item in card.tags.all() %}
@@ -189,7 +134,7 @@
                             </div>
                             <div class="card-details-display mt-1">
                                 {% if card.description %}
-                                    <small class="text-muted card-description-indicator me-2" title="Есть описание">📄</small>
+                                    <small class="text-muted card-description-indicator me-2" title="Есть описание"><i class="bi bi-text-paragraph"></i></small>
                                 {% endif %}
                                 <div class="card-assignees-list d-inline-flex align-items-center">
                                     {% if card.assignees.all() %}

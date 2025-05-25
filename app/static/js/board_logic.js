@@ -26,11 +26,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Элементы для поиска и фильтрации
     const searchInput = document.getElementById('searchInput');
-    const filterAssigneesSelect = document.getElementById('filterAssignees');
-    const filterTagsSelect = document.getElementById('filterTags');
+    const filterAssigneesList = document.getElementById('filterAssigneesList');
+    const filterTagsList = document.getElementById('filterTagsList');
     const resetFiltersBtn = document.getElementById('resetFiltersBtn');
     
-    // Состояние сортировки для каждой колонки { columnId: 'asc' | 'desc' | 'none' }
     let columnSortStates = {}; 
 
 
@@ -259,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(({ status, body }) => {
                 if (status === 200 && body.success) {
                     updateCardDisplay(body.card); 
-                    applyFiltersAndSort(); // Применить фильтры и сортировку после сохранения
+                    applyFiltersAndSort(); 
                 } else if (status === 400 && !body.success && body.errors) {
                     displayModalErrors(body.errors, modalForm);
                 } else {
@@ -312,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
                       if(cardElementToDelete) {
                           const columnList = cardElementToDelete.closest('.card-list');
                           cardElementToDelete.remove();
-                          updateNoCardsPlaceholder(columnList); // Обновляем плейсхолдер только для этой колонки
+                          updateNoCardsPlaceholder(columnList); 
                       }
                   } else {
                       alert('Ошибка удаления карточки: ' + (body.error || body.message || 'Неизвестная ошибка.'));
@@ -375,7 +374,6 @@ document.addEventListener('DOMContentLoaded', function () {
             cardElement.setAttribute('data-card-assignees', JSON.stringify(cardData.assignees || []));
             cardElement.setAttribute('data-card-tags', JSON.stringify(cardData.tags || [])); 
 
-            // Обновляем data-first-assignee-name для сортировки
             let firstAssigneeName = '';
             if (cardData.assignees && cardData.assignees.length > 0) {
                 firstAssigneeName = cardData.assignees[0].username.toLowerCase();
@@ -393,12 +391,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const detailsContainer = cardElement.querySelector('.card-details-display');
 
             if (cardData.description) {
-                if (descriptionIndicator) descriptionIndicator.style.display = 'inline';
-                else if(detailsContainer) { 
+                if (descriptionIndicator) {
+                    descriptionIndicator.style.display = 'inline';
+                    descriptionIndicator.innerHTML = '<i class="bi bi-text-paragraph"></i>';
+                } else if(detailsContainer) { 
                     const newIndicator = document.createElement('small');
                     newIndicator.className = 'text-muted card-description-indicator me-2';
                     newIndicator.title = 'Есть описание';
-                    newIndicator.innerHTML = '📄';
+                    newIndicator.innerHTML = '<i class="bi bi-text-paragraph"></i>';
                     detailsContainer.prepend(newIndicator);
                 }
             } else {
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <img src="${comment.author.avatar_url}" alt="${comment.author.username}" class="rounded-circle me-2" style="width:32px; height:32px; object-fit:cover;">
                     <div class="flex-grow-1">
                         <div class="d-flex justify-content-between align-items-center">
-                            <small class="fw-bold">${comment.author.username}</small>
+                            <small class="fw-bold">${escapeHtml(comment.author.username)}</small>
                             <small class="text-muted">${comment.timestamp}</small>
                         </div>
                         <p class="mb-1 comment-text">${escapeHtml(comment.text)}</p>
@@ -824,16 +824,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         await fetchBoardTags(currentBoardId); 
                         
                         const boardTagsResponse = await fetch(`/api/boards/${currentBoardId}/tags`);
-                        const allBoardTagsData = await boardTagsResponse.json(); // Переименовано для ясности
-                        if (allBoardTagsData.success) { // Используем новое имя переменной
+                        const allBoardTagsData = await boardTagsResponse.json(); 
+                        if (allBoardTagsData.success) { 
                             const currentSelectedCardTagIds = Array.from(modalCardTagsSelect.selectedOptions).map(opt => parseInt(opt.value));
                             if (status === 201 && !currentSelectedCardTagIds.includes(bodyData.tag.id)) {
                                 currentSelectedCardTagIds.push(bodyData.tag.id);
                             }
-                            populateTagSelect(allBoardTagsData.tags, currentSelectedCardTagIds); // Используем новое имя
+                            populateTagSelect(allBoardTagsData.tags, currentSelectedCardTagIds); 
                         }
                         updateAllCardTagDisplays(bodyData.tag.id, bodyData.tag, (status === 200 && tagIdToEdit)); 
-                        applyFiltersAndSort(); // Применить фильтры после изменения тегов
+                        applyFiltersAndSort(); 
                         
                     } else if (status === 400 && !bodyData.success && bodyData.errors) {
                         displayModalErrors(bodyData.errors, boardTagFormModal);
@@ -891,15 +891,15 @@ document.addEventListener('DOMContentLoaded', function () {
                             await fetchBoardTags(currentBoardId); 
                            
                             const boardTagsResponse = await fetch(`/api/boards/${currentBoardId}/tags`);
-                            const allBoardTagsData = await boardTagsResponse.json(); // Переименовано
-                            if (allBoardTagsData.success) { // Используем новое имя
+                            const allBoardTagsData = await boardTagsResponse.json(); 
+                            if (allBoardTagsData.success) { 
                                 const currentSelectedCardTagIds = Array.from(modalCardTagsSelect.selectedOptions)
                                                                      .map(opt => parseInt(opt.value))
                                                                      .filter(id => id !== parseInt(tagId)); 
-                                populateTagSelect(allBoardTagsData.tags, currentSelectedCardTagIds); // Используем новое имя
+                                populateTagSelect(allBoardTagsData.tags, currentSelectedCardTagIds); 
                             }
                             updateAllCardTagDisplays(tagId, null, false, true); 
-                            applyFiltersAndSort(); // Применить фильтры после удаления тега
+                            applyFiltersAndSort(); 
                         } else {
                             alert('Ошибка удаления тега: ' + (body.error || body.message || "Неизвестная ошибка."));
                         }
@@ -978,8 +978,20 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Логика Поиска, Фильтрации и Сортировки ---
     function applyFiltersAndSort() {
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-        const selectedAssigneeIds = filterAssigneesSelect ? Array.from(filterAssigneesSelect.selectedOptions).map(opt => opt.value) : [];
-        const selectedTagIds = filterTagsSelect ? Array.from(filterTagsSelect.selectedOptions).map(opt => opt.value) : [];
+        
+        const selectedAssigneeIds = [];
+        if (filterAssigneesList) {
+            filterAssigneesList.querySelectorAll('.filter-checkbox:checked').forEach(cb => {
+                selectedAssigneeIds.push(cb.value);
+            });
+        }
+
+        const selectedTagIds = [];
+        if (filterTagsList) {
+            filterTagsList.querySelectorAll('.filter-checkbox:checked').forEach(cb => {
+                selectedTagIds.push(cb.value);
+            });
+        }
 
         document.querySelectorAll('.card-list').forEach(columnList => {
             const columnId = columnList.dataset.columnId;
@@ -997,16 +1009,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 try { cardTags = JSON.parse(cardEl.dataset.cardTags || '[]').map(t => t.id.toString()); }
                 catch (e) { console.warn('Error parsing card tags for filter:', e, cardEl.dataset.cardTags); }
 
-                // Поиск
                 const searchMatch = searchTerm === '' || cardTitle.includes(searchTerm) || cardDescription.includes(searchTerm);
 
-                // Фильтр по исполнителям
                 let assigneeMatch = true;
                 if (selectedAssigneeIds.length > 0) {
                     assigneeMatch = selectedAssigneeIds.some(id => cardAssignees.includes(id));
                 }
 
-                // Фильтр по тегам
                 let tagMatch = true;
                 if (selectedTagIds.length > 0) {
                     tagMatch = selectedTagIds.some(id => cardTags.includes(id));
@@ -1020,24 +1029,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-            // Сортировка видимых карточек в колонке
-            const sortOrder = columnSortStates[columnId] || 'none'; // 'none', 'asc', 'desc'
+            const sortOrder = columnSortStates[columnId] || 'none'; 
             if (sortOrder !== 'none' && visibleCardsInColumn.length > 0) {
                 visibleCardsInColumn.sort((a, b) => {
-                    const nameA = a.dataset.firstAssigneeName || '\uffff'; // '\uffff' - очень большой символ, чтобы пустые были в конце при asc
+                    const nameA = a.dataset.firstAssigneeName || '\uffff'; 
                     const nameB = b.dataset.firstAssigneeName || '\uffff';
                     
                     if (sortOrder === 'asc') {
                         return nameA.localeCompare(nameB);
-                    } else { // desc
+                    } else { 
                         return nameB.localeCompare(nameA);
                     }
                 });
             }
             
-            // Переупорядочиваем DOM элементы в соответствии с сортировкой
             visibleCardsInColumn.forEach(cardNode => columnList.appendChild(cardNode));
-
             updateNoCardsPlaceholder(columnList);
         });
     }
@@ -1045,40 +1051,31 @@ document.addEventListener('DOMContentLoaded', function () {
     if (searchInput) {
         searchInput.addEventListener('input', applyFiltersAndSort);
     }
-    if (filterAssigneesSelect) {
-        filterAssigneesSelect.addEventListener('change', applyFiltersAndSort);
-    }
-    if (filterTagsSelect) {
-        filterTagsSelect.addEventListener('change', applyFiltersAndSort);
-    }
+    
+    document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', applyFiltersAndSort);
+    });
+
     if (resetFiltersBtn) {
         resetFiltersBtn.addEventListener('click', () => {
             if(searchInput) searchInput.value = '';
-            if(filterAssigneesSelect) Array.from(filterAssigneesSelect.options).forEach(opt => opt.selected = false);
-            if(filterTagsSelect) Array.from(filterTagsSelect.options).forEach(opt => opt.selected = false);
             
-            // Сброс состояния сортировки для всех колонок
+            document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
+            
             document.querySelectorAll('.sort-cards-btn').forEach(btn => {
                 btn.classList.remove('active-sort-asc', 'active-sort-desc');
-                btn.innerHTML = btn.innerHTML.replace(/ ▲| ▼/, ''); // Убираем стрелки
+                btn.innerHTML = btn.innerHTML.replace(/ ▲| ▼/, ''); 
             });
-            columnSortStates = {}; // Очищаем состояние сортировки
+            columnSortStates = {}; 
 
             applyFiltersAndSort();
         });
     }
     
-    // Обработчики для кнопок сортировки
     document.querySelectorAll('.sort-cards-btn').forEach(button => {
         button.addEventListener('click', function() {
             const columnId = this.dataset.columnId;
-            const sortBy = this.dataset.sortBy; // Пока только 'assignee'
-
-            // Сбрасываем сортировку в других колонках (опционально, или делаем независимой)
-            // document.querySelectorAll(`.sort-cards-btn:not([data-column-id="${columnId}"])`).forEach(btn => {
-            //     btn.classList.remove('active-sort-asc', 'active-sort-desc');
-            //     columnSortStates[btn.dataset.columnId] = 'none';
-            // });
+            const sortBy = this.dataset.sortBy; 
 
             let currentSortOrder = columnSortStates[columnId] || 'none';
             let nextSortOrder = 'asc';
@@ -1086,15 +1083,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (currentSortOrder === 'asc') {
                 nextSortOrder = 'desc';
             } else if (currentSortOrder === 'desc') {
-                nextSortOrder = 'none'; // Третий клик - сброс
+                nextSortOrder = 'none'; 
             }
             
             columnSortStates[columnId] = nextSortOrder;
 
-            // Обновляем UI кнопок сортировки
             document.querySelectorAll(`.sort-cards-btn[data-column-id="${columnId}"]`).forEach(btn => {
                 btn.classList.remove('active-sort-asc', 'active-sort-desc');
-                btn.innerHTML = btn.innerHTML.replace(/ ▲| ▼/, ''); // Убираем старые стрелки
+                btn.innerHTML = btn.innerHTML.replace(/ ▲| ▼/, ''); 
             });
 
             if (nextSortOrder === 'asc') {
@@ -1104,14 +1100,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.classList.add('active-sort-desc');
                 this.innerHTML += ' ▼';
             }
-            // Если nextSortOrder === 'none', классы не добавляются, стрелки не добавляются
-
             applyFiltersAndSort();
         });
     });
 
 
-    // --- Drag-and-drop логика ---
     const cardLists = document.querySelectorAll('.card-list');
     const csrfTokenForDrag = csrfToken; 
 
@@ -1132,8 +1125,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 const cardId = itemEl.getAttribute('data-card-id');
                 const newColumnId = toList.getAttribute('data-column-id');
 
-                // Сброс сортировки для колонки, куда перетащили, и откуда перетащили, 
-                // т.к. ручное перетаскивание меняет порядок
                 const toColumnIdSort = toList.dataset.columnId;
                 const fromColumnIdSort = fromList.dataset.columnId;
                 
@@ -1157,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!csrfTokenForDrag) {
                     console.error('CSRF token not found for drag-and-drop.');
                     alert('Ошибка: CSRF токен. Обновите страницу.');
-                    fromList.insertBefore(itemEl, fromList.children[oldIndex]); // Возвращаем элемент
+                    fromList.insertBefore(itemEl, fromList.children[oldIndex]); 
                     updateNoCardsPlaceholder(toList);
                     updateNoCardsPlaceholder(fromList);
                     return;
@@ -1187,12 +1178,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         updateNoCardsPlaceholder(fromList);
                         alert('Ошибка перемещения: ' + (data.error || data.message || 'Неизвестная ошибка'));
                     } else {
-                         // Если успешно перемещено, нужно заново применить фильтры и сортировку,
-                         // так как карточка могла стать видимой/невидимой в новой колонке
-                         // или порядок в старой изменился.
-                         // Однако, applyFiltersAndSort уже вызывается в конце, что может быть избыточно,
-                         // но гарантирует консистентность.
-                         // Для оптимизации, можно было бы только для затронутых колонок.
+                        // applyFiltersAndSort(); // Re-apply filters if necessary
                     }
                 })
                 .catch(error => {
@@ -1208,7 +1194,6 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateNoCardsPlaceholder(listElement) {
         if (!listElement) return;
         let placeholder = listElement.querySelector('.no-cards-placeholder');
-        // Считаем только видимые карточки (не display:none)
         const cardsInList = Array.from(listElement.querySelectorAll('.draggable-card')).filter(card => card.style.display !== 'none').length;
 
 
@@ -1216,9 +1201,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!placeholder) {
                 placeholder = document.createElement('div');
                 placeholder.className = 'list-group-item text-muted small fst-italic no-cards-placeholder';
-                placeholder.textContent = 'Нет карточек (или не соответствуют фильтру)';
                 listElement.appendChild(placeholder);
             }
+            placeholder.textContent = 'Нет карточек (или не соответствуют фильтру)';
             placeholder.style.display = 'block';
         } else {
             if (placeholder) {
@@ -1226,10 +1211,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     }
-    // Инициализация плейсхолдеров при загрузке
     cardLists.forEach(list => {
         updateNoCardsPlaceholder(list);
     });
-     // Первоначальное применение фильтров (если значения уже есть, например, из localStorage - пока не делаем)
     applyFiltersAndSort(); 
 });

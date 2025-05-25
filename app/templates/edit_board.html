@@ -1,23 +1,139 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-    <h1>{{ title }}: {{ current_name }}</h1>
+    <h1>{{ title }}</h1>
+    <hr>
     <div class="row">
         <div class="col-md-6">
-            <form action="{{ url_for('edit_board', board_id=board_id) }}" method="post" novalidate>
-                {{ form.hidden_tag() }}
-                <div class="mb-3">
-                    {{ form.name.label(class="form-label") }}
-                    {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), size=40) }}
-                    {% if form.name.errors %}
-                        <div class="invalid-feedback d-block">
-                            {% for error in form.name.errors %}<span>{{ error }}</span><br>{% endfor %}
-                        </div>
-                    {% endif %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    Редактировать название доски
                 </div>
-                {{ form.submit(value="Сохранить изменения", class="btn btn-primary") }}
-                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Отмена</a>
-            </form>
+                <div class="card-body">
+                    <form action="{{ url_for('edit_board', board_id=board.id) }}" method="post" novalidate>
+                        {{ form.hidden_tag() }}
+                        <div class="mb-3">
+                            {{ form.name.label(class="form-label") }}
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), size=40) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.name.errors %}<span>{{ error }}</span><br>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <input type="hidden" name="submit_board_name" value="1">
+                        {{ form.submit(value="Сохранить название", class="btn btn-primary") }}
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    Опасная зона
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('delete_board', board_id=board.id) }}" method="post" onsubmit="return confirm('Вы уверены, что хотите удалить доску \'{{ board.name }}\'? Все колонки и карточки в ней также будут удалены!');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger">Удалить доску</button>
+                    </form>
+                </div>
+            </div>
         </div>
+
+        <div class="col-md-6" id="members-management">
+            {% if is_owner %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    Управление участниками
+                </div>
+                <div class="card-body">
+                    <h5>Пригласить пользователя на доску</h5>
+                    <form action="{{ url_for('invite_to_board', board_id=board.id) }}" method="post" novalidate class="row g-3 align-items-end">
+                        {{ invite_form.hidden_tag() }}
+                        <div class="col-md-8">
+                            {{ invite_form.email_or_username.label(class="form-label") }}
+                            {{ invite_form.email_or_username(class="form-control form-control-sm" + (" is-invalid" if invite_form.email_or_username.errors else "")) }}
+                            {% if invite_form.email_or_username.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in invite_form.email_or_username.errors %}<span>{{ error }}</span><br>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-auto">
+                            {{ invite_form.submit_invite(class="btn btn-sm btn-success") }}
+                        </div>
+                    </form>
+                    <hr>
+                    <h5>Текущие участники и владелец:</h5>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <img src="{{ board.owner.get_avatar() }}" alt="Аватар {{ board.owner.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ board.owner.username }}">
+                                {{ board.owner.username }} ({{ board.owner.email }})
+                            </div>
+                            <span class="badge bg-primary">Владелец</span>
+                        </li>
+                        {% set owner_id = board.owner.id %}
+                        {% for member in board_members %}
+                            {% if member.id != owner_id %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <img src="{{ member.get_avatar() }}" alt="Аватар {{ member.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ member.username }}">
+                                    {{ member.username }} ({{ member.email }})
+                                </div>
+                                <form action="{{ url_for('remove_from_board', board_id=board.id, user_id=member.id) }}" method="post" onsubmit="return confirm('Удалить {{ member.username }} с этой доски?');" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning">Удалить</button>
+                                </form>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        {% if not board_members or (board_members|length == 1 and board_members[0].id == owner_id and board_members[0] == board.owner) %}
+                            <li class="list-group-item text-muted">Других участников нет.</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            {% elif board_members or board.owner %} 
+            <div class="card mb-4">
+                <div class="card-header">
+                    Участники доски
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <img src="{{ board.owner.get_avatar() }}" alt="Аватар {{ board.owner.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ board.owner.username }}">
+                                {{ board.owner.username }}
+                            </div>
+                            <span class="badge bg-primary">Владелец</span>
+                        </li>
+                        {% set owner_id = board.owner.id %}
+                        {% for member in board_members %}
+                            {% if member.id != owner_id %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <img src="{{ member.get_avatar() }}" alt="Аватар {{ member.username }}" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;" title="{{ member.username }}">
+                                    {{ member.username }}
+                                </div>
+                                {% if member == current_user %}
+                                    <form action="{{ url_for('remove_from_board', board_id=board.id, user_id=member.id) }}" method="post" onsubmit="return confirm('Покинуть доску {{ board.name }}?');" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning">Покинуть доску</button>
+                                    </form>
+                                {% else %}
+                                    <span class="badge bg-secondary">Участник</span>
+                                {% endif %}
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="mt-4">
+         <a href="{{ url_for('view_board', board_id=board.id) }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Вернуться к доске</a>
     </div>
 {% endblock %}

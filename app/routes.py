@@ -259,17 +259,28 @@ def admin_delete_user(user_id):
 def edit_board(board_id):
     board = Board.query.get_or_404(board_id)
     if not current_user.can_delete_board(board): 
-        flash('У вас нет прав для редактирования названия этой доски.', 'danger')
+        flash('У вас нет прав для редактирования этой доски.', 'danger')
         return redirect(url_for('view_board', board_id=board.id))
 
-    form = BoardForm(obj=board)
-    if form.validate_on_submit():
+    form = BoardForm(obj=board if request.method == 'GET' else None)
+    invite_form = InviteUserForm() 
+
+    if form.validate_on_submit() and 'submit_board_name' in request.form:
         board.name = form.name.data
         db.session.commit()
         flash('Название доски успешно обновлено!', 'success')
-        return redirect(url_for('dashboard'))
-    current_name = board.name
-    return render_template('edit_board.html', title='Редактировать доску', form=form, board_id=board_id, current_name=current_name)
+        return redirect(url_for('edit_board', board_id=board.id))
+    
+    if request.method == 'GET':
+        form.name.data = board.name
+    
+    board_members_list = board.members.all()
+    is_owner = (current_user == board.owner)
+
+    return render_template('edit_board.html', title=f'Настройки доски: {board.name}', 
+                           form=form, invite_form=invite_form, board=board,
+                           board_members=board_members_list, is_owner=is_owner)
+
 
 @app.route('/boards/<int:board_id>/delete', methods=['POST'])
 @login_required
@@ -296,7 +307,6 @@ def view_board(board_id, card_id_in_url=None):
 
     column_form = ColumnForm()
     card_form = CardForm() 
-    invite_form = InviteUserForm()
     comment_form = CommentForm() 
     tag_form = TagForm() 
 
@@ -315,8 +325,6 @@ def view_board(board_id, card_id_in_url=None):
             return redirect(redirect_url)
 
     columns = board.columns
-    board_members_list = board.members.all() 
-    is_owner = (current_user == board.owner)
     
     card_to_open = None
     if card_id_in_url:
@@ -326,15 +334,13 @@ def view_board(board_id, card_id_in_url=None):
             flash(f'Карточка с ID {card_id_in_url} не найдена на этой доске.', 'warning')
             return redirect(url_for('view_board', board_id=board_id))
     
-    # Данные для фильтров
-    board_all_users = board.get_eligible_assignees() # Используем существующий метод
+    board_all_users = board.get_eligible_assignees() 
     board_all_tags = board.tags.order_by(Tag.name).all()
 
 
-    return render_template('board.html', title=f"Доска: {board.name}", board=board,
+    return render_template('board.html', title=f"{board.name}", board=board,
                            columns=columns, column_form=column_form, card_form=card_form,
-                           invite_form=invite_form, comment_form=comment_form, tag_form=tag_form, 
-                           board_members=board_members_list, is_owner=is_owner,
+                           comment_form=comment_form, tag_form=tag_form, 
                            card_id_to_open_on_load=card_to_open.id if card_to_open else None,
                            board_all_users=board_all_users, board_all_tags=board_all_tags)
 
@@ -345,7 +351,7 @@ def invite_to_board(board_id):
     board = Board.query.get_or_404(board_id)
     if not current_user.can_delete_board(board): 
         flash('Только владелец доски может приглашать участников.', 'danger')
-        return redirect(url_for('view_board', board_id=board.id))
+        return redirect(url_for('edit_board', board_id=board.id, _anchor='members-management'))
 
     invite_form = InviteUserForm()
     if invite_form.validate_on_submit():
@@ -366,7 +372,7 @@ def invite_to_board(board_id):
         for field, errors in invite_form.errors.items():
             for error in errors:
                 flash(f"Ошибка в поле приглашения: {error}", 'danger')
-    return redirect(url_for('view_board', board_id=board.id))
+    return redirect(url_for('edit_board', board_id=board.id, _anchor='members-management'))
 
 @app.route('/boards/<int:board_id>/members/<int:user_id>/remove', methods=['POST'])
 @login_required
@@ -384,7 +390,7 @@ def remove_from_board(board_id, user_id):
             can_remove = True
     else: 
         flash('У вас нет прав для удаления этого участника.', 'danger')
-        return redirect(url_for('view_board', board_id=board.id))
+        return redirect(url_for('edit_board', board_id=board.id, _anchor='members-management'))
 
     if can_remove:
         if user_to_remove in board.members:
@@ -399,7 +405,7 @@ def remove_from_board(board_id, user_id):
              flash(f'Пользователь "{user_to_remove.username}" является владельцем и не может быть удален как участник.', 'info')
         else:
             flash(f'Пользователь "{user_to_remove.username}" не найден среди участников этой доски.', 'info')
-    return redirect(url_for('view_board', board_id=board.id))
+    return redirect(url_for('edit_board', board_id=board.id, _anchor='members-management'))
 
 @app.route('/columns/<int:column_id>/edit', methods=['GET', 'POST'])
 @login_required
