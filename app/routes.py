@@ -18,7 +18,7 @@ from wtforms import SelectField, SelectMultipleField
 from datetime import datetime
 
 
-# --- Декоратор для проверки прав администратора ---
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -28,20 +28,13 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- Helper function to populate assignee choices ---
+
 def _populate_assignee_choices(form, board):
     eligible_users = board.get_eligible_assignees()
     choices_for_multiple = [(user.id, user.username) for user in eligible_users]
     if hasattr(form, 'assignees') and isinstance(form.assignees, SelectMultipleField):
         form.assignees.choices = choices_for_multiple
-        # Add avatar data for JS if needed later, though current plan is to build checkboxes from this
-        # for user in eligible_users:
-        #     choice_widget = next((c for c in form.assignees if c.data == user.id), None)
-        #     if choice_widget:
-        #         choice_widget.avatar_url = user.get_avatar()
 
-
-# --- Helper function to populate tag choices ---
 def _populate_tag_choices(form, board):
     if hasattr(form, 'tags') and isinstance(form.tags, SelectMultipleField):
         board_tags = board.tags.order_by(Tag.name).all()

@@ -5,12 +5,11 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
-# from flask_migrate import Migrate # <--- УБРАТЬ или закомментировать
 
 app = Flask(__name__)
 
 # --- Конфигурация приложения ---
-app.config['SECRET_KEY'] = 'ce8de42314c87271ef469fbe5841e478' # ЗАМЕНИТЬ!
+app.config['SECRET_KEY'] = 'ce8de42314c87271ef469fbe5841e478' 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 instance_path = os.path.join(os.path.dirname(basedir), 'instance')
@@ -22,12 +21,11 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(instance_path, 'mydatabase.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# --- Конец Конфигурации ---
+
 
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
-# migrate = Migrate(app, db) # <--- УБРАТЬ или закомментировать
 
 login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите, чтобы получить доступ к этой странице.'

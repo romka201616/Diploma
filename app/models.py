@@ -4,17 +4,15 @@ from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import backref
-from sqlalchemy import UniqueConstraint # Добавлено для UniqueConstraint
+from sqlalchemy import UniqueConstraint 
 from flask import url_for
 from datetime import datetime
 
-# --- Ассоциативная таблица для связи Card и User (исполнители) ---
 card_assignees = db.Table('card_assignees',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), primary_key=True),
     db.Column('card_id', db.Integer, db.ForeignKey('card.id', ondelete='CASCADE'), primary_key=True)
 )
 
-# --- Ассоциативная таблица для связи Card и Tag ---
 card_tags = db.Table('card_tags',
     db.Column('card_id', db.Integer, db.ForeignKey('card.id', ondelete='CASCADE'), primary_key=True),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id', ondelete='CASCADE'), primary_key=True)
@@ -41,8 +39,6 @@ class User(UserMixin, db.Model):
     shared_boards = db.relationship('Board', secondary=board_members, lazy='dynamic',
                                     backref=db.backref('members', lazy='dynamic'))
     
-    # assigned_cards (многие-ко-многим с Card) создается через backref в Card.assignees
-    # comments (один-ко-многим с Comment) создается через backref в Comment.author
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -105,7 +101,7 @@ class Card(db.Model):
         backref=db.backref('cards', lazy='dynamic'),
         lazy='dynamic'
     )
-    # comments (один-ко-многим с Comment) создается через backref в Comment.card
+    
 
     def __repr__(self):
         return f'<Card {self.title}>'

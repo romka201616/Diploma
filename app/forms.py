@@ -4,7 +4,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional, Regexp
-from app.models import User # Tag будет импортироваться в routes при необходимости для валидации
+from app.models import User 
 from flask_login import current_user
 
 
